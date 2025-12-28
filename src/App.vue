@@ -127,11 +127,14 @@ export default {
           return;
         }
         
-        // 发送请求到后端
-        const response = await axios.post('/api/submit-data', {
+        // 准备数据
+        const data = {
           ...this.formData,
           date: this.selectedDate
-        });
+        };
+        
+        // 调用后端API保存数据到Excel文件
+        const response = await axios.post('/api/submit-data', data);
         
         if (response.data.success) {
           this.showResult = true;
@@ -190,15 +193,6 @@ h1 {
   color: #555;
 }
 
-.path-input-container {
-  display: flex;
-  gap: 10px;
-}
-
-.path-input-container input {
-  flex: 1;
-}
-
 .form-group input {
   padding: 10px;
   border: 1px solid #ddd;
@@ -210,23 +204,6 @@ h1 {
   outline: none;
   border-color: #007bff;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-/* 选择按钮样式 */
-.select-button {
-  padding: 10px 15px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  white-space: nowrap;
-}
-
-.select-button:hover {
-  background-color: #218838;
 }
 
 /* 提交按钮样式 */
