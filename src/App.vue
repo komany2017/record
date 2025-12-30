@@ -79,6 +79,24 @@
        </p>
     </div>
     
+    <!-- 成功消息显示 -->
+    <div v-if="successMessage" class="success-message">
+      <div class="success-icon">✓</div>
+      <div class="success-content">
+        <div class="success-title">保存成功</div>
+        <div class="success-details">
+          <div v-if="saveFileName" class="detail-item">
+            <span class="detail-label">文件名:</span>
+            <span class="detail-value">{{ saveFileName }}</span>
+          </div>
+          <div v-if="savePath" class="detail-item">
+            <span class="detail-label">保存路径:</span>
+            <span class="detail-value">{{ savePath }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- 错误信息显示 -->
     <div v-if="error" class="error-message">
       {{ error }}
@@ -87,7 +105,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import { fillExcelData } from './utils/fillExcelData.js';
 
 export default {
   name: 'App',
@@ -106,6 +124,9 @@ export default {
       },
       isSubmitting: false,
       showResult: false,
+      successMessage: '',
+      saveFileName: '',
+      savePath: '',
       error: ''
     };
   },
@@ -119,6 +140,7 @@ export default {
       try {
         this.isSubmitting = true;
         this.error = '';
+        this.successMessage = '';
         
         // 验证血压格式
         const bloodPressureRegex = /^\d{2,3}\/\d{2,3}$/;
@@ -133,17 +155,18 @@ export default {
           date: this.selectedDate
         };
         
-        // 调用后端API保存数据到Excel文件
-        const response = await axios.post('/api/submit-data', data);
+        // 直接调用前端fillExcelData函数生成Excel文件
+        const result = await fillExcelData(data);
         
-        if (response.data.success) {
-          this.showResult = true;
-        } else {
-          this.error = response.data.message || '提交失败，请重试';
-        }
+        // 显示成功消息
+        this.showResult = true;
+        this.successMessage = result.message;
+        this.saveFileName = result.fileName || '';
+        this.savePath = result.savePath || '';
+        
       } catch (error) {
         console.error('提交数据时出错:', error);
-        this.error = '提交失败，请检查网络连接或联系管理员';
+        this.error = '提交失败，请重试';
       } finally {
         this.isSubmitting = false;
       }
@@ -200,57 +223,99 @@ h1 {
   font-size: 16px;
 }
 
-.form-group input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
 /* 提交按钮样式 */
 .submit-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #007bff;
+  background-color: #4CAF50;
   color: white;
+  padding: 12px 20px;
   border: none;
   border-radius: 4px;
-  font-size: 16px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  font-size: 16px;
+  width: 100%;
   margin-top: 20px;
 }
 
 .submit-button:hover {
-  background-color: #0069d9;
+  background-color: #45a049;
 }
 
 .submit-button:disabled {
-  background-color: #6c757d;
+  background-color: #cccccc;
   cursor: not-allowed;
 }
 
-/* 结果显示区域样式 */
+/* 结果显示区域 */
 .result-area {
   margin-top: 30px;
   padding: 20px;
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border-left: 4px solid #4CAF50;
 }
 
 .result-area h2 {
-  color: #155724;
   margin-top: 0;
+  color: #333;
 }
 
-.total-flow {
+/* 成功消息样式 */
+.success-message {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.success-icon {
+  font-size: 32px;
   font-weight: bold;
-  color: #007bff;
-  font-size: 18px;
-  margin-top: 15px;
+  flex-shrink: 0;
 }
 
-/* 错误信息样式 */
+.success-content {
+  flex: 1;
+}
+
+.success-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.success-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-label {
+  font-weight: 600;
+  min-width: 80px;
+  color: #155724;
+}
+
+.detail-value {
+  font-family: 'Courier New', monospace;
+  background-color: rgba(255, 255, 255, 0.6);
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+/* 错误消息样式 */
 .error-message {
   margin-top: 20px;
   padding: 15px;
@@ -258,5 +323,6 @@ h1 {
   color: #721c24;
   border: 1px solid #f5c6cb;
   border-radius: 4px;
+  text-align: center;
 }
 </style>

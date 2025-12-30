@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { DateTime } from 'luxon';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 /**
  * 处理Excel文件操作
@@ -8,11 +9,9 @@ import { DateTime } from 'luxon';
  */
 export async function fillExcelData(data) {
   try {
-    // 生成Excel文件名
-    const yearMonth = data.date.substring(0, 7).replace('-', ''); // 提取年月，如2023-12变为202312
+    const yearMonth = data.date.substring(0, 7).replace('-', '');
     const fileName = `治疗记录${yearMonth}.xlsx`;
     
-    // 定义工作表结构
     const headers = [
       ['星期'],
       ['日期'],
@@ -35,68 +34,89 @@ export async function fillExcelData(data) {
       ['饮水量']
     ];
     
-    // 获取当前日期和星期
     const targetDate = data.date;
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     const weekday = weekdays[new Date(targetDate).getDay()];
     
-    // 尝试从本地存储加载现有工作表
     let workbook;
     let worksheet;
+    let rows;
     
-    try {
-      // 这里我们简化处理，总是创建新的工作簿
-      // 在实际应用中，你可能需要使用 FileReader 从用户选择的文件中读取
-      workbook = XLSX.utils.book_new();
-      worksheet = XLSX.utils.aoa_to_sheet(headers);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-    } catch (error) {
-      console.log('创建新工作簿');
-      workbook = XLSX.utils.book_new();
-      worksheet = XLSX.utils.aoa_to_sheet(headers);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+    const isCapacitor = typeof window !== 'undefined' && window.Capacitor;
+    
+    if (isCapacitor) {
+      try {
+        const fileExists = await Filesystem.readFile({
+          path: fileName,
+          directory: Directory.Documents
+        });
+        
+        if (fileExists) {
+          const base64Data = fileExists.data;
+          const binaryString = atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const arrayBuffer = bytes.buffer;
+          workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          worksheet = workbook.Sheets['Sheet1'];
+          rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          console.log('读取现有文件成功');
+        }
+      } catch (error) {
+        console.log('文件不存在，创建新文件');
+        workbook = XLSX.utils.book_new();
+        worksheet = XLSX.utils.aoa_to_sheet(headers);
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+        rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      }
+    } else {
+      try {
+        workbook = XLSX.readFile(fileName);
+        worksheet = workbook.Sheets['Sheet1'];
+        rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        console.log('读取现有文件成功');
+      } catch (error) {
+        console.log('文件不存在，创建新文件');
+        workbook = XLSX.utils.book_new();
+        worksheet = XLSX.utils.aoa_to_sheet(headers);
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
+        rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      }
     }
     
-    // 将工作表转换为二维数组
-    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    const dateRowIndex = 1;
+    const weekdayRowIndex = 0;
     
-    // 定义日期行和星期行的索引
-    const dateRowIndex = 1; // 日期在行索引1（第二行）
-    const weekdayRowIndex = 0; // 星期在行索引0（第一行）
-    
-    // 查找目标日期是否已存在
     let targetColumn = -1;
     
-    // 确保日期行存在
     if (rows.length > dateRowIndex) {
-      // 遍历日期行的所有列，查找目标日期
-      for (let i = 1; i < rows[dateRowIndex].length; i++) { // 从列索引1开始，跳过第一列
-        const cellValue = rows[dateRowIndex][i];
-        // 直接比较字符串格式的日期
-        if (cellValue === targetDate) {
+      for (let i = 1; i < rows[dateRowIndex].length; i++) {
+        let cellValue = rows[dateRowIndex][i];
+        console.log(`检查列 ${i}: cellValue=${cellValue}, targetDate=${targetDate}, type=${typeof cellValue}`);
+        
+        if (cellValue && String(cellValue) === String(targetDate)) {
           targetColumn = i;
+          console.log(`找到匹配的日期列: ${targetColumn}`);
           break;
         }
       }
     }
     
-    // 如果没有找到目标日期，创建新列
     if (targetColumn === -1) {
-      // 确定新列的索引（在最后一列后添加）
       targetColumn = rows[0] ? rows[0].length : 1;
       console.log(`创建新列: ${targetColumn}`);
     } else {
-      console.log(`找到现有列: ${targetColumn}`);
+      console.log(`找到现有列: ${targetColumn}，更新数据`);
     }
     
-    // 确保所有行都有足够的列
     rows.forEach((row, rowIndex) => {
       while (row.length <= targetColumn) {
         row.push('');
       }
     });
     
-    // 定义各指标的行索引
     const indices = {
       bloodPressure: 2,
       weight: 3,
@@ -117,7 +137,6 @@ export async function fillExcelData(data) {
       waterIntake: 18
     };
     
-    // 确保rows数组有足够的行
     while (rows.length <= indices.waterIntake) {
       const newRow = [];
       while (newRow.length <= targetColumn) {
@@ -126,22 +145,18 @@ export async function fillExcelData(data) {
       rows.push(newRow);
     }
     
-    // 确保所有行都存在且是有效的数组
     for (let i = 0; i <= indices.waterIntake; i++) {
       if (!rows[i]) {
         rows[i] = [];
       }
-      // 确保行有足够的列
       while (rows[i].length <= targetColumn) {
         rows[i].push('');
       }
     }
     
-    // 填写日期和星期
     rows[dateRowIndex][targetColumn] = targetDate;
     rows[weekdayRowIndex][targetColumn] = weekday;
     
-    // 填写数据
     rows[indices.bloodPressure][targetColumn] = data.bloodPressure;
     rows[indices.weight][targetColumn] = data.weight;
     rows[indices.heatingBag][targetColumn] = data.heatingBag || '2.5';
@@ -158,29 +173,249 @@ export async function fillExcelData(data) {
     rows[indices.dayInjectionConcentration][targetColumn] = data.dayInjectionConcentration;
     rows[indices.dayUltrafiltration][targetColumn] = data.dayUltrafiltration;
     
-    // 计算机器+手工总超滤量
     const machinePlusManualFlow = (data.zeroCircleFlow || 0) + (data.machineTotalFlow || 0) + (data.dayUltrafiltration || 0);
     rows[indices.machinePlusManualFlow][targetColumn] = machinePlusManualFlow;
     
     rows[indices.waterIntake][targetColumn] = data.waterIntake;
     
-    // 转换二维数组为工作表
     const newWorksheet = XLSX.utils.aoa_to_sheet(rows);
     
-    // 替换原工作表
+    applyExcelStyles(newWorksheet, rows, targetColumn);
+    
     workbook.Sheets['Sheet1'] = newWorksheet;
     
-    // 生成Excel文件并下载
-    XLSX.writeFile(workbook, fileName);
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const excelData = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     
+    let savePath = '';
+    
+    if (isCapacitor) {
+      try {
+        const base64Data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(excelData);
+        });
+        
+        const base64Content = base64Data.split(',')[1];
+        
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Content,
+          directory: Directory.Documents,
+          recursive: true
+        });
+        
+        savePath = result.uri;
+      } catch (error) {
+        console.error('Capacitor文件保存失败:', error);
+        await XLSX.writeFile(workbook, fileName);
+        savePath = 'Documents/' + fileName;
+      }
+    } else {
+      await XLSX.writeFile(workbook, fileName);
+      
+      try {
+        if (window.navigator && window.navigator.userAgent) {
+          const isWindows = navigator.userAgent.includes('Windows');
+          const isMac = navigator.userAgent.includes('Mac');
+          const isLinux = navigator.userAgent.includes('Linux');
+          
+          if (isWindows) {
+            savePath = 'C:\\Users\\用户名\\Downloads\\' + fileName;
+          } else if (isMac) {
+            savePath = '/Users/用户名/Downloads/' + fileName;
+          } else if (isLinux) {
+            savePath = '/home/用户名/Downloads/' + fileName;
+          } else {
+            savePath = '默认下载目录/' + fileName;
+          }
+        }
+      } catch (error) {
+        savePath = '默认下载目录/' + fileName;
+      }
+    }
+   
     return {
       success: true,
       weekday: weekday,
-      message: '数据已成功保存到Excel文件'
+      fileName: fileName,
+      savePath: savePath,
+      message: `数据已成功保存到Excel文件\n文件名: ${fileName}\n保存路径: ${savePath}`
     };
     
   } catch (error) {
     console.error('处理Excel文件时出错:', error);
     throw new Error('处理Excel文件时发生错误');
   }
+}
+
+/**
+ * 应用Excel样式
+ * @param {Object} worksheet - 工作表对象
+ * @param {Array} rows - 数据行
+ * @param {number} targetColumn - 目标列
+ */
+function applyExcelStyles(worksheet, rows, targetColumn) {
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  
+  const headerStyle = {
+    font: {
+      name: 'Microsoft YaHei',
+      sz: 12,
+      bold: true,
+      color: { rgb: 'FFFFFF' }
+    },
+    fill: {
+      fgColor: { rgb: '4472C4' }
+    },
+    alignment: {
+      horizontal: 'center',
+      vertical: 'center',
+      wrapText: true
+    },
+    border: {
+      top: { style: 'thin', color: { auto: 1 } },
+      right: { style: 'thin', color: { auto: 1 } },
+      bottom: { style: 'thin', color: { auto: 1 } },
+      left: { style: 'thin', color: { auto: 1 } }
+    }
+  };
+  
+  const dataStyle = {
+    font: {
+      name: 'Microsoft YaHei',
+      sz: 11
+    },
+    alignment: {
+      horizontal: 'center',
+      vertical: 'center'
+    },
+    border: {
+      top: { style: 'thin', color: { auto: 1 } },
+      right: { style: 'thin', color: { auto: 1 } },
+      bottom: { style: 'thin', color: { auto: 1 } },
+      left: { style: 'thin', color: { auto: 1 } }
+    }
+  };
+  
+  const dateStyle = {
+    font: {
+      name: 'Microsoft YaHei',
+      sz: 11,
+      bold: true
+    },
+    alignment: {
+      horizontal: 'center',
+      vertical: 'center'
+    },
+    fill: {
+      fgColor: { rgb: 'E7E6E6' }
+    },
+    border: {
+      top: { style: 'thin', color: { auto: 1 } },
+      right: { style: 'thin', color: { auto: 1 } },
+      bottom: { style: 'thin', color: { auto: 1 } },
+      left: { style: 'thin', color: { auto: 1 } }
+    }
+  };
+  
+  const weekdayStyle = {
+    font: {
+      name: 'Microsoft YaHei',
+      sz: 11,
+      bold: true,
+      color: { rgb: 'FF0000' }
+    },
+    alignment: {
+      horizontal: 'center',
+      vertical: 'center'
+    },
+    fill: {
+      fgColor: { rgb: 'FFF2CC' }
+    },
+    border: {
+      top: { style: 'thin', color: { auto: 1 } },
+      right: { style: 'thin', color: { auto: 1 } },
+      bottom: { style: 'thin', color: { auto: 1 } },
+      left: { style: 'thin', color: { auto: 1 } }
+    }
+  };
+  
+  const highlightStyle = {
+    font: {
+      name: 'Microsoft YaHei',
+      sz: 11,
+      bold: true
+    },
+    fill: {
+      fgColor: { rgb: 'C6E0B4' }
+    },
+    alignment: {
+      horizontal: 'center',
+      vertical: 'center'
+    },
+    border: {
+      top: { style: 'thin', color: { auto: 1 } },
+      right: { style: 'thin', color: { auto: 1 } },
+      bottom: { style: 'thin', color: { auto: 1 } },
+      left: { style: 'thin', color: { auto: 1 } }
+    }
+  };
+  
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = worksheet[cellAddress];
+      
+      if (!cell) continue;
+      
+      if (C === 0) {
+        cell.s = headerStyle;
+      } else if (R === 0) {
+        cell.s = weekdayStyle;
+      } else if (R === 1) {
+        cell.s = dateStyle;
+      } else if (C === targetColumn) {
+        cell.s = highlightStyle;
+      } else {
+        cell.s = dataStyle;
+      }
+    }
+  }
+  
+  const colWidths = [
+    { wch: 8 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 10 }
+  ];
+  
+  for (let i = 0; i <= range.e.c; i++) {
+    if (i < colWidths.length) {
+      worksheet['!cols'] = worksheet['!cols'] || [];
+      worksheet['!cols'][i] = colWidths[i];
+    } else {
+      worksheet['!cols'] = worksheet['!cols'] || [];
+      worksheet['!cols'][i] = { wch: 12 };
+    }
+  }
+  
+  worksheet['!freeze'] = { xSplit: 1, ySplit: 2 };
 }
