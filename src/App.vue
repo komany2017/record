@@ -179,18 +179,20 @@ export default {
 /* 容器样式 */
 .app-container {
   max-width: 800px;
-  margin: 20px auto;
-  padding: 20px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  margin: 0;
+  padding: 16px;
+  background-color: #f5f7fa;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 /* 标题样式 */
 h1 {
   text-align: center;
-  color: #333;
-  margin-bottom: 20px;
+  color: #2c3e50;
+  margin-bottom: 24px;
+  font-size: 24px;
+  font-weight: 600;
 }
 
 /* 表单样式 */
@@ -200,8 +202,8 @@ h1 {
 
 .form-row {
   display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .form-group {
@@ -211,72 +213,107 @@ h1 {
 }
 
 .form-group label {
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #555;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #34495e;
+  font-size: 14px;
 }
 
 .form-group input {
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 14px 12px;
+  border: 2px solid #e0e6ed;
+  border-radius: 12px;
   font-size: 16px;
+  background-color: #ffffff;
+  transition: all 0.3s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group input::placeholder {
+  color: #95a5a6;
 }
 
 /* 提交按钮样式 */
 .submit-button {
-  background-color: #4CAF50;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 12px 20px;
+  padding: 16px 20px;
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 600;
   width: 100%;
-  margin-top: 20px;
+  margin-top: 24px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transition: all 0.3s ease;
 }
 
 .submit-button:hover {
-  background-color: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.submit-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
 }
 
 .submit-button:disabled {
-  background-color: #cccccc;
+  background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* 结果显示区域 */
 .result-area {
   margin-top: 30px;
   padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  border-left: 4px solid #4CAF50;
+  background-color: #ffffff;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
 .result-area h2 {
   margin-top: 0;
-  color: #333;
+  color: #2c3e50;
+  font-size: 18px;
 }
 
 /* 成功消息样式 */
 .success-message {
   margin-top: 20px;
   padding: 20px;
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 16px;
   text-align: left;
   display: flex;
   align-items: flex-start;
   gap: 15px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .success-icon {
   font-size: 32px;
   font-weight: bold;
   flex-shrink: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .success-content {
@@ -284,8 +321,8 @@ h1 {
 }
 
 .success-title {
-  font-size: 18px;
-  font-weight: bold;
+  font-size: 20px;
+  font-weight: 600;
   margin-bottom: 12px;
 }
 
@@ -304,25 +341,118 @@ h1 {
 .detail-label {
   font-weight: 600;
   min-width: 80px;
-  color: #155724;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .detail-value {
   font-family: 'Courier New', monospace;
-  background-color: rgba(255, 255, 255, 0.6);
-  padding: 4px 8px;
-  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 8px;
   word-break: break-all;
+  font-size: 13px;
 }
 
 /* 错误消息样式 */
 .error-message {
   margin-top: 20px;
-  padding: 15px;
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-  border-radius: 4px;
+  padding: 16px;
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  color: white;
+  border-radius: 12px;
   text-align: center;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .form-group input {
+    padding: 16px 14px;
+    font-size: 16px;
+  }
+
+  .submit-button {
+    padding: 18px 20px;
+    font-size: 18px;
+    margin-top: 20px;
+  }
+
+  .success-message {
+    padding: 16px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .detail-item {
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+  }
+
+  .detail-label {
+    min-width: auto;
+  }
+}
+
+/* 触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  .submit-button {
+    padding: 18px 20px;
+    font-size: 18px;
+  }
+
+  .form-group input {
+    padding: 16px 14px;
+  }
+}
+
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .app-container {
+    background-color: #1a1a2e;
+  }
+
+  h1 {
+    color: #e0e0e0;
+  }
+
+  .form-group label {
+    color: #b0b0b0;
+  }
+
+  .form-group input {
+    background-color: #16213e;
+    border-color: #0f3460;
+    color: #e0e0e0;
+  }
+
+  .form-group input:focus {
+    border-color: #667eea;
+  }
+
+  .result-area {
+    background-color: #16213e;
+    border-left-color: #667eea;
+  }
+
+  .result-area h2 {
+    color: #e0e0e0;
+  }
 }
 </style>
