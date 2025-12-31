@@ -17,8 +17,11 @@
     "@capacitor/core": "^8.0.0",
     "@capacitor/filesystem": "^8.0.0",
     "axios": "^1.7.9",
+    "chart.js": "^4.5.1",
+    "dexie": "^4.2.1",
     "luxon": "^3.7.2",
     "vue": "^3.5.13",
+    "vue-chartjs": "^5.3.3",
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"

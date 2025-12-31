@@ -5,6 +5,9 @@
         <li>
           <router-link to="/">数据录入</router-link>
         </li>
+        <li>
+          <router-link to="/preview">记录预览</router-link>
+        </li>
       </ul>
     </nav>
     

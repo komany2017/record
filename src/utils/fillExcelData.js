@@ -2,6 +2,9 @@ import * as XLSX from 'xlsx';
 import { DateTime } from 'luxon';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import { saveTreatmentRecord, getTreatmentRecordByDate } from './database';
+
+
 
 /**
  * 处理Excel文件操作，将治疗数据写入Excel文件
@@ -34,6 +37,7 @@ import { Capacitor } from '@capacitor/core';
  */
 export async function fillExcelData(data) {
   try {
+    console.log(`[${new Date().toISOString()}] 开始填充Excel数据，日期: ${data.date}`);
     // 步骤1：生成Excel文件名
     // 从日期中提取年月部分，例如：2023-12-15 -> 202312
     const yearMonth = data.date.substring(0, 7).replace('-', ''); 
@@ -66,7 +70,33 @@ export async function fillExcelData(data) {
     // 步骤3：计算当前日期对应的星期
     const targetDate = data.date;
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdays[new Date(targetDate).getDay()];
+    let weekday = weekdays[new Date(targetDate).getDay()];
+
+    // 步骤3.1：检查数据库中是否存在相同日期的数据
+    // 如果存在，使用数据库数据优先（确保数据一致性）
+    const databaseRecord = await getTreatmentRecordByDate(targetDate);
+    if (databaseRecord) {
+      console.log(`[${new Date().toISOString()}] 发现数据库中存在相同日期的数据，使用数据库数据更新Excel`);
+      // 使用数据库中的数据覆盖传入的数据
+      data.bloodPressure = databaseRecord.bloodPressure;
+      data.weight = databaseRecord.weight;
+      data.heatingBag = databaseRecord.heatingBag;
+      data.supplementBag = databaseRecord.supplementBag;
+      data.treatmentMethod = databaseRecord.treatmentMethod;
+      data.totalTreatmentVolume = databaseRecord.totalTreatmentVolume;
+      data.treatmentTime = databaseRecord.treatmentTime;
+      data.singleInjectionVolume = databaseRecord.singleInjectionVolume;
+      data.lastBagInjectionVolume = databaseRecord.lastBagInjectionVolume;
+      data.cycleCount = databaseRecord.cycleCount;
+      data.zeroCircleFlow = databaseRecord.zeroCircleFlow;
+      data.machineTotalFlow = databaseRecord.machineTotalFlow;
+      data.dayManualInjection = databaseRecord.dayManualInjection;
+      data.dayInjectionConcentration = databaseRecord.dayInjectionConcentration;
+      data.dayUltrafiltration = databaseRecord.dayUltrafiltration;
+      data.waterIntake = databaseRecord.waterIntake;
+      // 从数据库获取星期，确保一致性
+      weekday = databaseRecord.weekday;
+    }
 
     // 步骤4：初始化工作簿变量
     let workbook;
@@ -91,23 +121,24 @@ export async function fillExcelData(data) {
           // 使用XLSX库解析二进制数据为工作簿对象
           const workbookData = XLSX.read(binaryString, { type: 'binary' });
           workbook = workbookData;
-          console.log('从移动端文件系统读取现有工作簿');
+          console.log(`[${new Date().toISOString()}] 从移动端文件系统读取现有工作簿: ${fileName}`);
         } catch (readError) {
           // 文件不存在时，创建新的工作簿
-          console.log('移动端文件不存在，创建新工作簿');
+          console.log(`[${new Date().toISOString()}] 移动端文件不存在，创建新工作簿: ${fileName}`);
           workbook = XLSX.utils.book_new();
           worksheet = XLSX.utils.aoa_to_sheet(headers);
           XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
         }
       } else {
         // 浏览器端：总是创建新的工作簿（因为无法直接访问文件系统）
+        console.log(`[${new Date().toISOString()}] 浏览器端创建新工作簿: ${fileName}`);
         workbook = XLSX.utils.book_new();
         worksheet = XLSX.utils.aoa_to_sheet(headers);
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
       }
     } catch (error) {
       // 发生任何错误时，创建新的工作簿
-      console.log('创建新工作簿');
+      console.log(`[${new Date().toISOString()}] 发生错误，创建新工作簿: ${fileName}`);
       workbook = XLSX.utils.book_new();
       worksheet = XLSX.utils.aoa_to_sheet(headers);
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
@@ -137,12 +168,12 @@ export async function fillExcelData(data) {
         const cellValueStr = String(cellValue).trim();
         const targetDateStr = String(targetDate).trim();
         
-        console.log(`比较日期: 列${i} = "${cellValueStr}" vs 目标 = "${targetDateStr}"`);
+        console.log(`[${new Date().toISOString()}] 比较日期: 列${i} = "${cellValueStr}" vs 目标 = "${targetDateStr}"`);
         
         // 如果找到匹配的日期，记录列索引并退出循环
         if (cellValueStr === targetDateStr) {
           targetColumn = i;
-          console.log(`找到匹配的日期列: ${targetColumn}`);
+          console.log(`[${new Date().toISOString()}] 找到匹配的日期列: ${targetColumn}`);
           break;
         }
       }
@@ -153,10 +184,10 @@ export async function fillExcelData(data) {
     if (targetColumn === -1) {
       // 确定新列的索引（在最后一列后添加）
       targetColumn = rows[0] ? rows[0].length : 1;
-      console.log(`未找到匹配日期，创建新列: ${targetColumn}`);
+      console.log(`[${new Date().toISOString()}] 未找到匹配日期，创建新列: ${targetColumn}`);
     } else {
       // 找到匹配日期，将更新该列数据
-      console.log(`找到现有列，将更新数据: ${targetColumn}`);
+      console.log(`[${new Date().toISOString()}] 找到现有列，将更新数据: ${targetColumn}`);
     }
 
     // 步骤13：确保所有行都有足够的列数
@@ -236,11 +267,40 @@ export async function fillExcelData(data) {
 
     rows[indices.waterIntake][targetColumn] = data.waterIntake;
 
+    // 将数据保存到数据库
+    const databaseData = {
+      date: data.date,
+      weekday: weekday,
+      bloodPressure: data.bloodPressure,
+      weight: data.weight,
+      heatingBag: data.heatingBag || '2.5',
+      supplementBag: data.supplementBag || '2.5',
+      treatmentMethod: data.treatmentMethod || 'IPD',
+      totalTreatmentVolume: data.totalTreatmentVolume || '8000',
+      treatmentTime: data.treatmentTime || '10',
+      singleInjectionVolume: data.singleInjectionVolume || '2000',
+      lastBagInjectionVolume: data.lastBagInjectionVolume || '0',
+      cycleCount: data.cycleCount || '4',
+      zeroCircleFlow: data.zeroCircleFlow,
+      machineTotalFlow: data.machineTotalFlow,
+      dayManualInjection: data.dayManualInjection || '2000',
+      dayInjectionConcentration: data.dayInjectionConcentration || '艾烤糊精',
+      dayUltrafiltration: data.dayUltrafiltration,
+      machinePlusManualFlow: machinePlusManualFlow,
+      waterIntake: data.waterIntake
+    };
+
+    console.log(`[${new Date().toISOString()}] 开始将数据保存到数据库，日期: ${data.date}`);
+    await saveTreatmentRecord(databaseData);
+    console.log(`[${new Date().toISOString()}] 数据已成功保存到数据库，日期: ${data.date}`);
+
     // 转换二维数组为工作表
     const newWorksheet = XLSX.utils.aoa_to_sheet(rows);
+    console.log(`[${new Date().toISOString()}] 将二维数组转换回Excel工作表`);
 
     // 替换原工作表
     workbook.Sheets['Sheet1'] = newWorksheet;
+    console.log(`[${new Date().toISOString()}] 更新工作表内容完成`);
 
     // 保存文件
     if (isMobile) {
@@ -255,20 +315,14 @@ export async function fillExcelData(data) {
         recursive: true
       });
 
-      console.log(`文件已保存到移动端 Documents 目录: ${fileName}`);
+      console.log(`[${new Date().toISOString()}] Excel文件已保存到移动端 Documents 目录: ${fileName}`);
     } else {
-      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const base64Data = arrayBufferToBase64(excelBuffer);
-      await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: Directory.Documents,
-        recursive: true
-      });
-      // 浏览器端：使用 XLSX.writeFile 下载
-      // XLSX.writeFile(workbook, fileName);
+        XLSX.writeFile(workbook, fileName);
+        console.log(`[${new Date().toISOString()}] Excel文件已下载到浏览器: ${fileName}`);
     }
 
+    console.log(`[${new Date().toISOString()}] Excel数据填充成功，日期: ${data.date}`);
+    
     return {
       success: true,
       weekday: weekday,
@@ -278,7 +332,8 @@ export async function fillExcelData(data) {
     };
 
   } catch (error) {
-    console.error('处理Excel文件时出错:', error);
+    console.error(`[${new Date().toISOString()}] Excel数据填充失败，日期: ${data.date}，错误: ${error.message}`);
+    console.error(error.stack);
     throw new Error('处理Excel文件时发生错误');
   }
 }

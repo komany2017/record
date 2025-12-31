@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import RootApp from '../RootApp.vue';
 import Home from '../App.vue';
+import PreviewPage from '../PreviewPage.vue';
 
 const routes = [
   {
@@ -12,6 +13,12 @@ const routes = [
         component: Home,
         name: 'Home',
         meta: { title: '数据录入' }
+      },
+      {
+        path: '/preview',
+        component: PreviewPage,
+        name: 'Preview',
+        meta: { title: '治疗记录预览' }
       }
     ]
   }
