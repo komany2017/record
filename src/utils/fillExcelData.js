@@ -38,6 +38,8 @@ import { saveTreatmentRecord, getTreatmentRecordByDate } from './database';
 export async function fillExcelData(data) {
   try {
     console.log(`[${new Date().toISOString()}] 开始填充Excel数据，日期: ${data.date}`);
+    // 保存用户输入的饮水量（累加用），避免被数据库旧值覆盖
+    const userInputWaterIntake = Number(data.waterIntake);
     // 步骤1：生成Excel文件名
     // 从日期中提取年月部分，例如：2023-12-15 -> 202312
     const yearMonth = data.date.substring(0, 7).replace('-', ''); 
@@ -225,8 +227,8 @@ export async function fillExcelData(data) {
       dialysateColor: 20              // 腹透液颜色
     };
 
-    // 确保rows数组有足够的行
-    while (rows.length <= indices.waterIntake) {
+    // 确保rows数组有足够的行（使用最大行索引 dialysateColor，包含所有字段）
+    while (rows.length <= indices.dialysateColor) {
       const newRow = [];
       while (newRow.length <= targetColumn) {
         newRow.push('');
@@ -235,7 +237,7 @@ export async function fillExcelData(data) {
     }
 
     // 确保所有行都存在且是有效的数组
-    for (let i = 0; i <= indices.waterIntake; i++) {
+    for (let i = 0; i <= indices.dialysateColor; i++) {
       if (!rows[i]) {
         rows[i] = [];
       }
@@ -272,7 +274,10 @@ export async function fillExcelData(data) {
     const machinePlusManualFlow = (data.zeroCircleFlow || 0) + (data.machineTotalFlow || 0) + (data.dayUltrafiltration || 0);
     rows[indices.machinePlusManualFlow][targetColumn] = machinePlusManualFlow;
 
-    rows[indices.waterIntake][targetColumn] = data.waterIntake;
+    // 饮水量累加：从Excel读出当日已有饮水量，加上本次输入
+    const existingWaterIntake = Number(rows[indices.waterIntake][targetColumn]) || 0;
+    const accumulatedWaterIntake = existingWaterIntake + userInputWaterIntake;
+    rows[indices.waterIntake][targetColumn] = accumulatedWaterIntake;
     rows[indices.dialysateColor][targetColumn] = data.dialysateColor || '清亮';
 
     // 将数据保存到数据库
@@ -296,7 +301,7 @@ export async function fillExcelData(data) {
       dayInjectionConcentration: data.dayInjectionConcentration || '艾烤糊精',
       dayUltrafiltration: data.dayUltrafiltration,
       machinePlusManualFlow: machinePlusManualFlow,
-      waterIntake: data.waterIntake,
+      waterIntake: accumulatedWaterIntake,
       dialysateColor: data.dialysateColor || '清亮'
     };
 
@@ -361,4 +366,62 @@ function arrayBufferToBase64(buffer) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
+}
+
+/**
+ * 从Excel读出指定日期的当日饮水量（累加基数）
+ * 移动端读取Documents目录下对应月份的Excel文件，查找日期列并返回饮水量单元格的值。
+ * 浏览器端无持久化Excel，回退到数据库查询。
+ * @param {string} date - 日期，格式：YYYY-MM-DD
+ * @returns {Promise<number>} - 当日饮水量（未找到返回0）
+ */
+export async function getWaterIntakeByDate(date) {
+  try {
+    const yearMonth = date.substring(0, 7).replace('-', '');
+    const fileName = `治疗记录${yearMonth}.xlsx`;
+    const isMobile = Capacitor.isNativePlatform();
+
+    if (!isMobile) {
+      // 浏览器端无持久化Excel，回退到数据库
+      const rec = await getTreatmentRecordByDate(date);
+      return rec && rec.waterIntake != null ? Number(rec.waterIntake) : 0;
+    }
+
+    // 移动端：读取Documents目录下的Excel文件
+    let fileContent;
+    try {
+      fileContent = await Filesystem.readFile({
+        path: fileName,
+        directory: Directory.Documents
+      });
+    } catch (e) {
+      // 文件不存在，当日饮水量为0
+      return 0;
+    }
+
+    const binaryString = atob(fileContent.data);
+    const workbook = XLSX.read(binaryString, { type: 'binary' });
+    const worksheet = workbook.Sheets['Sheet1'];
+    if (!worksheet) return 0;
+
+    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    const dateRowIndex = 1;        // 日期在行索引1
+    const waterIntakeRowIndex = 19; // 饮水量在行索引19
+
+    if (rows.length <= dateRowIndex) return 0;
+
+    // 遍历日期行查找匹配日期
+    for (let i = 1; i < rows[dateRowIndex].length; i++) {
+      const cellValueStr = String(rows[dateRowIndex][i]).trim();
+      if (cellValueStr === String(date).trim()) {
+        const val = rows[waterIntakeRowIndex] ? rows[waterIntakeRowIndex][i] : '';
+        return Number(val) || 0;
+      }
+    }
+    // 未找到匹配日期
+    return 0;
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] 读取当日饮水量失败，日期: ${date}，错误: ${error.message}`);
+    return 0;
+  }
 }

@@ -70,6 +70,7 @@
           <div class="form-group">
             <label for="waterIntake">饮水量</label>
             <input type="number" id="waterIntake" v-model.number="formData.waterIntake" required>
+            <div class="hint-text" v-if="dailyWaterIntake > 0">当日累计: {{ dailyWaterIntake }} ml</div>
           </div>
         </div>
 
@@ -154,7 +155,7 @@
 </template>
 
 <script>
-import { fillExcelData } from './utils/fillExcelData.js';
+import { fillExcelData, getWaterIntakeByDate } from './utils/fillExcelData.js';
 import { saveTreatmentRecord, getTreatmentRecordsByDateRange } from './utils/database.js';
 
 export default {
@@ -179,10 +180,51 @@ export default {
       successMessage: '',
       saveFileName: '',
       savePath: '',
-      error: ''
+      error: '',
+      successTimer: null,
+      dailyWaterIntake: 0
     };
   },
+  watch: {
+    successMessage(val) {
+      // 成功提示显示 10 秒后自动关闭
+      if (this.successTimer) {
+        clearTimeout(this.successTimer);
+      }
+      if (val) {
+        this.successTimer = setTimeout(() => {
+          this.successMessage = '';
+          this.saveFileName = '';
+          this.savePath = '';
+          this.successTimer = null;
+        }, 10000);
+      }
+    },
+    selectedDate() {
+      // 切换日期时重新加载当日饮水量
+      this.loadDailyWaterIntake();
+    }
+  },
+  mounted() {
+    // 初始化时加载当日饮水量
+    this.loadDailyWaterIntake();
+  },
+  beforeUnmount() {
+    if (this.successTimer) {
+      clearTimeout(this.successTimer);
+    }
+  },
   methods: {
+    async loadDailyWaterIntake() {
+      try {
+        this.dailyWaterIntake = await getWaterIntakeByDate(this.selectedDate);
+        console.log(`[${new Date().toISOString()}] 当日饮水量: ${this.dailyWaterIntake}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] 加载当日饮水量失败: ${error.message}`);
+        this.dailyWaterIntake = 0;
+      }
+    },
+
     getTodayDate() {
       const today = new Date();
       return today.toISOString().split('T')[0];
@@ -242,6 +284,8 @@ export default {
         this.successMessage = result.message;
         this.saveFileName = result.fileName || '';
         this.savePath = result.savePath || '';
+        // 刷新当日饮水量显示（累加后总量已变化）
+        await this.loadDailyWaterIntake();
         
         console.log(`[${new Date().toISOString()}] 治疗记录提交成功，日期: ${this.selectedDate}`);
         
@@ -397,6 +441,13 @@ export default {
   color: #34495e;
   font-size: 15px;
   transition: color 0.3s ease;
+}
+
+.hint-text {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #2980b9;
+  font-weight: 500;
 }
 
 .form-group input {

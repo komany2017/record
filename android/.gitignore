@@ -57,6 +57,10 @@ captures/
 #*.jks
 #*.keystore
 
+# Release signing credentials and production keystore (do NOT commit)
+keystore.properties
+app/release.keystore
+
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
 .cxx/
