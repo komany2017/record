@@ -27,13 +27,13 @@
         
         <div class="form-row">
           <div class="form-group">
-            <label for="bloodPressure">血压</label>
-            <input type="text" id="bloodPressure" v-model="formData.bloodPressure" placeholder="例如: 120/80" required>
+            <label for="bloodPressure">血压/心率</label>
+            <input type="text" id="bloodPressure" v-model="formData.bloodPressure" placeholder="例如: 120/80/75" required>
           </div>
-          
+
           <div class="form-group">
             <label for="weight">体重 (kg)</label>
-            <input type="number" id="weight" v-model.number="formData.weight" step="0.1" required>
+            <input type="number" id="weight" v-model.number="formData.weight" step="0.01" required>
           </div>
         </div>
         
@@ -72,6 +72,17 @@
             <input type="number" id="waterIntake" v-model.number="formData.waterIntake" required>
           </div>
         </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="dialysateColor">腹透液颜色</label>
+            <select id="dialysateColor" v-model="formData.dialysateColor" required>
+              <option value="清亮">清亮</option>
+              <option value="浑浊">浑浊</option>
+              <option value="血性">血性</option>
+            </select>
+          </div>
+        </div>
         
         <div class="form-actions">
           <button type="submit" class="submit-button" :disabled="isSubmitting">
@@ -92,15 +103,16 @@
             </div>
             <div v-for="(value, key) in formData" :key="key" class="result-item">
               <span class="result-label">{{ 
-                key === 'bloodPressure' ? '血压：' : 
+                key === 'bloodPressure' ? '血压/心率：' : 
                 key === 'weight' ? '体重：' : 
                 key === 'zeroCircleFlow' ? '0周期超滤量：' : 
                 key === 'machineTotalFlow' ? '机器总超滤量：' : 
                 key === 'dayManualInjection' ? '日间手工注入量：' : 
                 key === 'dayInjectionConcentration' ? '日间注入浓度：' : 
-                key === 'dayUltrafiltration' ? '日间超滤量：' : '饮水量：' 
+                key === 'dayUltrafiltration' ? '日间超滤量：' : 
+                key === 'waterIntake' ? '饮水量：' : '腹透液颜色：' 
               }}</span>
-              <span class="result-value">{{ value }}</span>
+              <span class="result-value">{{ key === 'weight' ? Number(value).toFixed(2) : value }}</span>
             </div>
           </div>
         </div>
@@ -152,13 +164,14 @@ export default {
       selectedDate: this.getTodayDate(),
       formData: {
         bloodPressure: '',
-        weight: '',
+        weight: 58.00,
         zeroCircleFlow: '',
         machineTotalFlow: '',
         dayManualInjection: '',
         dayInjectionConcentration: '',
         dayUltrafiltration: '',
-        waterIntake: ''
+        waterIntake: 800,
+        dialysateColor: '清亮'
       },
       isSubmitting: false,
       isExporting: false,
@@ -182,13 +195,17 @@ export default {
         this.error = '';
         this.successMessage = '';
         
-        // 验证血压格式
-        const bloodPressureRegex = /^\d{2,3}\/\d{2,3}$/;
+        // 验证血压/心率格式：120/80/75
+        const bloodPressureRegex = /^\d{2,3}\/\d{2,3}\/\d{2,3}$/;
         if (!bloodPressureRegex.test(this.formData.bloodPressure)) {
-          console.error(`[${new Date().toISOString()}] 血压格式验证失败: ${this.formData.bloodPressure}`);
-          this.error = '血压格式不正确，请输入如 120/80 的格式';
+          console.error(`[${new Date().toISOString()}] 血压/心率格式验证失败: ${this.formData.bloodPressure}`);
+          this.error = '格式不正确，请输入如 120/80/75 的格式（血压/心率）';
           return;
         }
+
+        // 解析血压/心率：格式为 收缩压/舒张压/心率
+        const [systolic, diastolic, heartRate] = this.formData.bloodPressure.split('/');
+        const bloodPressure = `${systolic}/${diastolic}`;
         
         // 准备数据
         const dateObj = new Date(this.selectedDate);
@@ -200,6 +217,9 @@ export default {
         
         const data = {
           ...this.formData,
+          bloodPressure: bloodPressure,
+          heartRate: Number(heartRate),
+          weight: Number(this.formData.weight).toFixed(2),
           date: this.selectedDate,
           weekday: weekday,
           machinePlusManualFlow: machinePlusManualFlow
@@ -242,14 +262,12 @@ export default {
         this.error = '';
         this.successMessage = '';
         
-        // 计算日期范围：昨天到28天前
+        // 计算日期范围：今天到28天前（含今天）
         const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
         
-        const endDate = yesterday.toISOString().split('T')[0];
-        const startDate = new Date(yesterday);
-        startDate.setDate(startDate.getDate() - 27); // 28天前
+        const endDate = today.toISOString().split('T')[0];
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 27); // 28天前（含今天共28天）
         const formattedStartDate = startDate.toISOString().split('T')[0];
         
         console.log(`[${new Date().toISOString()}] 导出日期范围: ${formattedStartDate} 到 ${endDate}`);

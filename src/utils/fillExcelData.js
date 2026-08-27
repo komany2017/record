@@ -49,22 +49,24 @@ export async function fillExcelData(data) {
       ['星期'],                    // 第0行：星期几
       ['日期'],                    // 第1行：治疗日期
       ['血压'],                    // 第2行：血压数据
-      ['体重(不带水)'],            // 第3行：体重
-      ['加热袋'],                  // 第4行：加热袋容量
-      ['补充袋'],                  // 第5行：补充袋容量
-      ['治疗方式'],                // 第6行：IPD/CCPD等
-      ['总治疗量'],                // 第7行：总治疗量
-      ['治疗时间'],                // 第8行：治疗时长
-      ['单次注入量'],              // 第9行：每次注入量
-      ['末袋注入量'],              // 第10行：最后注入量
-      ['循环次数'],                // 第11行：治疗循环次数
-      ['0周期超流量'],             // 第12行：0周期超滤量
-      ['机器总超滤量'],            // 第13行：机器总超滤量
-      ['日间手工注入量'],          // 第14行：日间手工注入量
-      ['日间注入浓度'],            // 第15行：日间注入浓度
-      ['日间超滤量'],              // 第16行：日间超滤量
-      ['机器+手工总超滤量'],       // 第17行：总超滤量（计算值）
-      ['饮水量']                   // 第18行：饮水量
+      ['心率'],                    // 第3行：心率
+      ['体重(不带水)'],            // 第4行：体重
+      ['加热袋'],                  // 第5行：加热袋容量
+      ['补充袋'],                  // 第6行：补充袋容量
+      ['治疗方式'],                // 第7行：IPD/CCPD等
+      ['总治疗量'],                // 第8行：总治疗量
+      ['治疗时间'],                // 第9行：治疗时长
+      ['单次注入量'],              // 第10行：每次注入量
+      ['末袋注入量'],              // 第11行：最后注入量
+      ['循环次数'],                // 第12行：治疗循环次数
+      ['0周期超流量'],             // 第13行：0周期超滤量
+      ['机器总超滤量'],            // 第14行：机器总超滤量
+      ['日间手工注入量'],          // 第15行：日间手工注入量
+      ['日间注入浓度'],            // 第16行：日间注入浓度
+      ['日间超滤量'],              // 第17行：日间超滤量
+      ['机器+手工总超滤量'],       // 第18行：总超滤量（计算值）
+      ['饮水量'],                   // 第19行：饮水量
+      ['腹透液颜色']                // 第20行：腹透液颜色
     ];
 
     // 步骤3：计算当前日期对应的星期
@@ -79,6 +81,7 @@ export async function fillExcelData(data) {
       console.log(`[${new Date().toISOString()}] 发现数据库中存在相同日期的数据，使用数据库数据更新Excel`);
       // 使用数据库中的数据覆盖传入的数据
       data.bloodPressure = databaseRecord.bloodPressure;
+      data.heartRate = databaseRecord.heartRate;
       data.weight = databaseRecord.weight;
       data.heatingBag = databaseRecord.heatingBag;
       data.supplementBag = databaseRecord.supplementBag;
@@ -94,6 +97,7 @@ export async function fillExcelData(data) {
       data.dayInjectionConcentration = databaseRecord.dayInjectionConcentration;
       data.dayUltrafiltration = databaseRecord.dayUltrafiltration;
       data.waterIntake = databaseRecord.waterIntake;
+      data.dialysateColor = databaseRecord.dialysateColor;
       // 从数据库获取星期，确保一致性
       weekday = databaseRecord.weekday;
     }
@@ -201,22 +205,24 @@ export async function fillExcelData(data) {
     // 步骤14：定义各数据字段对应的行索引
     const indices = {
       bloodPressure: 2,              // 血压
-      weight: 3,                     // 体重
-      heatingBag: 4,                 // 加热袋
-      supplementBag: 5,              // 补充袋
-      treatmentMethod: 6,           // 治疗方式
-      totalTreatmentVolume: 7,      // 总治疗量
-      treatmentTime: 8,              // 治疗时间
-      singleInjectionVolume: 9,     // 单次注入量
-      lastBagInjectionVolume: 10,    // 末袋注入量
-      cycleCount: 11,                // 循环次数
-      zeroCircleFlow: 12,            // 0周期超流量
-      machineTotalFlow: 13,          // 机器总超滤量
-      dayManualInjection: 14,        // 日间手工注入量
-      dayInjectionConcentration: 15, // 日间注入浓度
-      dayUltrafiltration: 16,        // 日间超滤量
-      machinePlusManualFlow: 17,     // 机器+手工总超滤量
-      waterIntake: 18                // 饮水量
+      heartRate: 3,                  // 心率
+      weight: 4,                     // 体重
+      heatingBag: 5,                 // 加热袋
+      supplementBag: 6,              // 补充袋
+      treatmentMethod: 7,           // 治疗方式
+      totalTreatmentVolume: 8,      // 总治疗量
+      treatmentTime: 9,              // 治疗时间
+      singleInjectionVolume: 10,    // 单次注入量
+      lastBagInjectionVolume: 11,    // 末袋注入量
+      cycleCount: 12,                // 循环次数
+      zeroCircleFlow: 13,            // 0周期超流量
+      machineTotalFlow: 14,          // 机器总超滤量
+      dayManualInjection: 15,        // 日间手工注入量
+      dayInjectionConcentration: 16, // 日间注入浓度
+      dayUltrafiltration: 17,        // 日间超滤量
+      machinePlusManualFlow: 18,     // 机器+手工总超滤量
+      waterIntake: 19,                // 饮水量
+      dialysateColor: 20              // 腹透液颜色
     };
 
     // 确保rows数组有足够的行
@@ -246,6 +252,7 @@ export async function fillExcelData(data) {
     //* @param {string} data.dayUltrafiltration - 日间超滤量
     // 填写数据
     rows[indices.bloodPressure][targetColumn] = data.bloodPressure;
+    rows[indices.heartRate][targetColumn] = data.heartRate;
     rows[indices.weight][targetColumn] = data.weight;
     rows[indices.heatingBag][targetColumn] = data.heatingBag || '2.5';
     rows[indices.supplementBag][targetColumn] = data.supplementBag || '2.5';
@@ -266,12 +273,14 @@ export async function fillExcelData(data) {
     rows[indices.machinePlusManualFlow][targetColumn] = machinePlusManualFlow;
 
     rows[indices.waterIntake][targetColumn] = data.waterIntake;
+    rows[indices.dialysateColor][targetColumn] = data.dialysateColor || '清亮';
 
     // 将数据保存到数据库
     const databaseData = {
       date: data.date,
       weekday: weekday,
       bloodPressure: data.bloodPressure,
+      heartRate: data.heartRate,
       weight: data.weight,
       heatingBag: data.heatingBag || '2.5',
       supplementBag: data.supplementBag || '2.5',
@@ -287,7 +296,8 @@ export async function fillExcelData(data) {
       dayInjectionConcentration: data.dayInjectionConcentration || '艾烤糊精',
       dayUltrafiltration: data.dayUltrafiltration,
       machinePlusManualFlow: machinePlusManualFlow,
-      waterIntake: data.waterIntake
+      waterIntake: data.waterIntake,
+      dialysateColor: data.dialysateColor || '清亮'
     };
 
     console.log(`[${new Date().toISOString()}] 开始将数据保存到数据库，日期: ${data.date}`);

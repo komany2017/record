@@ -8,6 +8,16 @@ db.version(1).stores({
   treatmentRecords: 'date, weekday, bloodPressure, weight, zeroCircleFlow, machineTotalFlow, dayManualInjection, dayInjectionConcentration, dayUltrafiltration, machinePlusManualFlow, waterIntake, createdAt, updatedAt'
 });
 
+// 升级版本：新增 heartRate 字段
+db.version(2).stores({
+  treatmentRecords: 'date, weekday, bloodPressure, heartRate, weight, zeroCircleFlow, machineTotalFlow, dayManualInjection, dayInjectionConcentration, dayUltrafiltration, machinePlusManualFlow, waterIntake, createdAt, updatedAt'
+});
+
+// 升级版本：新增 dialysateColor 字段
+db.version(3).stores({
+  treatmentRecords: 'date, weekday, bloodPressure, heartRate, weight, zeroCircleFlow, machineTotalFlow, dayManualInjection, dayInjectionConcentration, dayUltrafiltration, machinePlusManualFlow, waterIntake, dialysateColor, createdAt, updatedAt'
+});
+
 // 保存或更新治疗记录
 export async function saveTreatmentRecord(data) {
   try {
