@@ -156,27 +156,64 @@ export async function fillExcelData(data) {
     // 步骤8：将工作表转换为二维数组格式，便于操作
     const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-    // 步骤9：定义关键行的索引
-    const dateRowIndex = 1;      // 日期在行索引1（第二行）
-    const weekdayRowIndex = 0;   // 星期在行索引0（第一行）
+    // 步骤9：从第0列（表头列）动态检测各数据行的实际索引
+    // 兼容历史文件结构：旧文件可能没有"机器+手工总超滤量"行，饮水量/腹透液颜色位于不同行
+    const rowLabels = {
+      weekday: '星期',
+      date: '日期',
+      bloodPressure: '血压',
+      heartRate: '心率',
+      weight: '体重(不带水)',
+      heatingBag: '加热袋',
+      supplementBag: '补充袋',
+      treatmentMethod: '治疗方式',
+      totalTreatmentVolume: '总治疗量',
+      treatmentTime: '治疗时间',
+      singleInjectionVolume: '单次注入量',
+      lastBagInjectionVolume: '末袋注入量',
+      cycleCount: '循环次数',
+      zeroCircleFlow: '0周期超流量',
+      machineTotalFlow: '机器总超滤量',
+      dayManualInjection: '日间手工注入量',
+      dayInjectionConcentration: '日间注入浓度',
+      dayUltrafiltration: '日间超滤量',
+      machinePlusManualFlow: '机器+手工总超滤量',
+      waterIntake: '饮水量',
+      dialysateColor: '腹透液颜色'
+    };
+    const indices = {};
+    const usedRows = new Set();
+    Object.keys(rowLabels).forEach(key => {
+      const label = rowLabels[key];
+      let found = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (usedRows.has(i)) continue;
+        const cellLabel = String(rows[i] && rows[i][0] !== undefined ? rows[i][0] : '').trim();
+        if (cellLabel === label) { found = i; usedRows.add(i); break; }
+      }
+      indices[key] = found;
+    });
+    // 未找到的行（新字段在旧文件中不存在）分配到末尾新行
+    let nextNewRowIndex = rows.length;
+    Object.keys(rowLabels).forEach(key => {
+      if (indices[key] === -1) {
+        indices[key] = nextNewRowIndex++;
+      }
+    });
+    const dateRowIndex = indices.date;
+    const weekdayRowIndex = indices.weekday;
+    console.log(`[${new Date().toISOString()}] 检测到行索引: 饮水量=${indices.waterIntake}, 腹透液颜色=${indices.dialysateColor}, 机器+手工=${indices.machinePlusManualFlow}`);
 
     // 步骤10：查找目标日期是否已存在
     let targetColumn = -1;
 
     // 步骤11：遍历日期行，查找是否已存在相同日期
-    // 确保日期行存在
     if (rows.length > dateRowIndex) {
-      // 遍历日期行的所有列，查找目标日期
-      // 从列索引1开始，跳过第一列（第一列是表头）
+      // 遍历日期行的所有列，查找目标日期（从列1开始，跳过表头列）
       for (let i = 1; i < rows[dateRowIndex].length; i++) {
-        const cellValue = rows[dateRowIndex][i];
-        // 转换为字符串并去除首尾空格后进行比较
-        const cellValueStr = String(cellValue).trim();
+        const cellValueStr = String(rows[dateRowIndex][i]).trim();
         const targetDateStr = String(targetDate).trim();
-        
         console.log(`[${new Date().toISOString()}] 比较日期: 列${i} = "${cellValueStr}" vs 目标 = "${targetDateStr}"`);
-        
-        // 如果找到匹配的日期，记录列索引并退出循环
         if (cellValueStr === targetDateStr) {
           targetColumn = i;
           console.log(`[${new Date().toISOString()}] 找到匹配的日期列: ${targetColumn}`);
@@ -186,49 +223,23 @@ export async function fillExcelData(data) {
     }
 
     // 步骤12：根据查找结果确定目标列
-    // 如果没有找到目标日期，创建新列
     if (targetColumn === -1) {
-      // 确定新列的索引（在最后一列后添加）
       targetColumn = rows[0] ? rows[0].length : 1;
       console.log(`[${new Date().toISOString()}] 未找到匹配日期，创建新列: ${targetColumn}`);
     } else {
-      // 找到匹配日期，将更新该列数据
       console.log(`[${new Date().toISOString()}] 找到现有列，将更新数据: ${targetColumn}`);
     }
 
     // 步骤13：确保所有行都有足够的列数
-    // 如果某行列数不足，用空字符串填充到目标列
-    rows.forEach((row, rowIndex) => {
+    rows.forEach(row => {
       while (row.length <= targetColumn) {
         row.push('');
       }
     });
 
-    // 步骤14：定义各数据字段对应的行索引
-    const indices = {
-      bloodPressure: 2,              // 血压
-      heartRate: 3,                  // 心率
-      weight: 4,                     // 体重
-      heatingBag: 5,                 // 加热袋
-      supplementBag: 6,              // 补充袋
-      treatmentMethod: 7,           // 治疗方式
-      totalTreatmentVolume: 8,      // 总治疗量
-      treatmentTime: 9,              // 治疗时间
-      singleInjectionVolume: 10,    // 单次注入量
-      lastBagInjectionVolume: 11,    // 末袋注入量
-      cycleCount: 12,                // 循环次数
-      zeroCircleFlow: 13,            // 0周期超流量
-      machineTotalFlow: 14,          // 机器总超滤量
-      dayManualInjection: 15,        // 日间手工注入量
-      dayInjectionConcentration: 16, // 日间注入浓度
-      dayUltrafiltration: 17,        // 日间超滤量
-      machinePlusManualFlow: 18,     // 机器+手工总超滤量
-      waterIntake: 19,                // 饮水量
-      dialysateColor: 20              // 腹透液颜色
-    };
-
-    // 确保rows数组有足够的行（使用最大行索引 dialysateColor，包含所有字段）
-    while (rows.length <= indices.dialysateColor) {
+    // 步骤14：确保rows数组有足够的行（覆盖所有检测到的行索引，包括新增行）
+    const maxRowIndex = Math.max(...Object.values(indices));
+    while (rows.length <= maxRowIndex) {
       const newRow = [];
       while (newRow.length <= targetColumn) {
         newRow.push('');
@@ -237,15 +248,21 @@ export async function fillExcelData(data) {
     }
 
     // 确保所有行都存在且是有效的数组
-    for (let i = 0; i <= indices.dialysateColor; i++) {
+    for (let i = 0; i <= maxRowIndex; i++) {
       if (!rows[i]) {
         rows[i] = [];
       }
-      // 确保行有足够的列
       while (rows[i].length <= targetColumn) {
         rows[i].push('');
       }
     }
+    // 为检测到的行补充表头标签（仅在列0为空时，避免覆盖已有标签）
+    Object.keys(rowLabels).forEach(key => {
+      const idx = indices[key];
+      if (rows[idx] && (rows[idx][0] === '' || rows[idx][0] === undefined || rows[idx][0] === null)) {
+        rows[idx][0] = rowLabels[key];
+      }
+    });
 
     // 填写日期和星期
     rows[dateRowIndex][targetColumn] = targetDate;

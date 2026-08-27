@@ -18,6 +18,13 @@ db.version(3).stores({
   treatmentRecords: 'date, weekday, bloodPressure, heartRate, weight, zeroCircleFlow, machineTotalFlow, dayManualInjection, dayInjectionConcentration, dayUltrafiltration, machinePlusManualFlow, waterIntake, dialysateColor, createdAt, updatedAt'
 });
 
+// 升级版本：新增喝水记录表与导入历史表
+db.version(4).stores({
+  treatmentRecords: 'date, weekday, bloodPressure, heartRate, weight, zeroCircleFlow, machineTotalFlow, dayManualInjection, dayInjectionConcentration, dayUltrafiltration, machinePlusManualFlow, waterIntake, dialysateColor, createdAt, updatedAt',
+  waterIntakeRecords: '++id, date, importedAt',
+  importHistory: '++id, importedAt'
+});
+
 // 保存或更新治疗记录
 export async function saveTreatmentRecord(data) {
   try {

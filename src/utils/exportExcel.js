@@ -255,3 +255,194 @@ function arrayBufferToBase64(buffer) {
   }
   return btoa(binary);
 }
+
+/**
+ * 从Excel文件导入治疗记录到数据库
+ *
+ * 功能说明：
+ * 1. 读取Excel文件（File对象、ArrayBuffer或base64字符串）
+ * 2. 使用动态行索引检测，兼容历史/新文件结构
+ * 3. 从每列提取一条记录（列1开始，跳过表头列）
+ * 4. 调用saveTreatmentRecord写入数据库（put语义，相同日期覆盖）
+ *
+ * @param {File|ArrayBuffer|string} fileOrData - Excel文件（File对象、ArrayBuffer或二进制字符串）
+ * @param {Function} saveRecord - 数据库保存函数（saveTreatmentRecord）
+ * @returns {Promise<Object>} - 导入结果，包含success、count、records字段
+ */
+export async function importTreatmentRecordsFromExcel(fileOrData, saveRecord) {
+  try {
+    console.log(`[${new Date().toISOString()}] 开始从Excel文件导入治疗记录`);
+
+    // 步骤1：读取Excel文件为工作簿
+    let workbook;
+    if (fileOrData instanceof ArrayBuffer) {
+      workbook = XLSX.read(fileOrData, { type: 'array' });
+    } else if (typeof fileOrData === 'string') {
+      // 假定为二进制字符串或base64
+      try {
+        workbook = XLSX.read(fileOrData, { type: 'binary' });
+      } catch (e) {
+        workbook = XLSX.read(fileOrData, { type: 'base64' });
+      }
+    } else if (fileOrData && typeof fileOrData.arrayBuffer === 'function') {
+      // File或Blob对象
+      const buffer = await fileOrData.arrayBuffer();
+      workbook = XLSX.read(buffer, { type: 'array' });
+    } else {
+      throw new Error('不支持的文件格式，请提供File对象、ArrayBuffer或二进制字符串');
+    }
+
+    // 步骤2：获取第一个工作表
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) {
+      throw new Error('Excel文件中未找到工作表');
+    }
+
+    // 步骤3：将工作表转换为二维数组
+    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+    if (!rows || rows.length === 0) {
+      throw new Error('Excel文件内容为空');
+    }
+    console.log(`[${new Date().toISOString()}] Excel解析完成，共${rows.length}行`);
+
+    // 步骤4：动态检测各数据行的索引（兼容历史/新文件结构）
+    const rowLabels = {
+      weekday: '星期',
+      date: '日期',
+      bloodPressure: '血压',
+      heartRate: '心率',
+      weight: '体重(不带水)',
+      heatingBag: '加热袋',
+      supplementBag: '补充袋',
+      treatmentMethod: '治疗方式',
+      totalTreatmentVolume: '总治疗量',
+      treatmentTime: '治疗时间',
+      singleInjectionVolume: '单次注入量',
+      lastBagInjectionVolume: '末袋注入量',
+      cycleCount: '循环次数',
+      zeroCircleFlow: '0周期超流量',
+      machineTotalFlow: '机器总超滤量',
+      dayManualInjection: '日间手工注入量',
+      dayInjectionConcentration: '日间注入浓度',
+      dayUltrafiltration: '日间超滤量',
+      machinePlusManualFlow: '机器+手工总超滤量',
+      waterIntake: '饮水量',
+      dialysateColor: '腹透液颜色'
+    };
+
+    const indices = {};
+    const usedRows = new Set();
+    Object.keys(rowLabels).forEach(key => {
+      const label = rowLabels[key];
+      let found = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (usedRows.has(i)) continue;
+        const cellLabel = String(rows[i] && rows[i][0] !== undefined ? rows[i][0] : '').trim();
+        if (cellLabel === label) { found = i; usedRows.add(i); break; }
+      }
+      indices[key] = found;
+    });
+
+    // 必须有日期行才能导入
+    if (indices.date === -1) {
+      throw new Error('Excel文件中未找到"日期"行，无法识别数据格式');
+    }
+    console.log(`[${new Date().toISOString()}] 行索引检测完成: 日期=${indices.date}, 饮水量=${indices.waterIntake}`);
+
+    // 步骤5：从每列提取记录（从列1开始，跳过表头列0）
+    const dateRow = rows[indices.date] || [];
+    const records = [];
+    const numericFields = ['heartRate', 'weight', 'zeroCircleFlow', 'machineTotalFlow',
+      'dayManualInjection', 'dayUltrafiltration', 'machinePlusManualFlow', 'waterIntake'];
+
+    for (let col = 1; col < dateRow.length; col++) {
+      const dateValue = String(dateRow[col] || '').trim();
+      if (!dateValue) continue;
+
+      // 获取该列指定行的值
+      const getValue = (key) => {
+        const idx = indices[key];
+        if (idx === -1 || !rows[idx]) return '';
+        const val = rows[idx][col];
+        return val !== undefined && val !== null ? val : '';
+      };
+
+      const record = {
+        date: dateValue,
+        weekday: String(getValue('weekday') || ''),
+        bloodPressure: String(getValue('bloodPressure') || ''),
+        heartRate: getValue('heartRate'),
+        weight: getValue('weight'),
+        heatingBag: String(getValue('heatingBag') || ''),
+        supplementBag: String(getValue('supplementBag') || ''),
+        treatmentMethod: String(getValue('treatmentMethod') || ''),
+        totalTreatmentVolume: String(getValue('totalTreatmentVolume') || ''),
+        treatmentTime: String(getValue('treatmentTime') || ''),
+        singleInjectionVolume: String(getValue('singleInjectionVolume') || ''),
+        lastBagInjectionVolume: String(getValue('lastBagInjectionVolume') || ''),
+        cycleCount: String(getValue('cycleCount') || ''),
+        zeroCircleFlow: getValue('zeroCircleFlow'),
+        machineTotalFlow: getValue('machineTotalFlow'),
+        dayManualInjection: getValue('dayManualInjection'),
+        dayInjectionConcentration: String(getValue('dayInjectionConcentration') || ''),
+        dayUltrafiltration: getValue('dayUltrafiltration'),
+        machinePlusManualFlow: getValue('machinePlusManualFlow'),
+        waterIntake: getValue('waterIntake'),
+        dialysateColor: String(getValue('dialysateColor') || ''),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // 数值字段转换
+      numericFields.forEach(field => {
+        if (record[field] !== '' && record[field] !== undefined && record[field] !== null) {
+          const num = Number(record[field]);
+          record[field] = isNaN(num) ? record[field] : num;
+        }
+      });
+
+      records.push(record);
+    }
+
+    console.log(`[${new Date().toISOString()}] 从Excel提取到${records.length}条记录`);
+
+    if (records.length === 0) {
+      return {
+        success: true,
+        count: 0,
+        records: [],
+        message: 'Excel文件中未找到有效记录'
+      };
+    }
+
+    // 步骤6：保存记录到数据库（put语义，相同日期覆盖）
+    let savedCount = 0;
+    const failedRecords = [];
+    for (let i = 0; i < records.length; i++) {
+      try {
+        await saveRecord(records[i]);
+        savedCount++;
+      } catch (e) {
+        console.error(`[${new Date().toISOString()}] 保存第${i + 1}条记录失败，日期: ${records[i].date}，错误: ${e.message}`);
+        failedRecords.push({ date: records[i].date, error: e.message });
+      }
+    }
+
+    console.log(`[${new Date().toISOString()}] 导入完成，成功${savedCount}条，失败${failedRecords.length}条`);
+
+    return {
+      success: true,
+      count: savedCount,
+      total: records.length,
+      records: records,
+      failed: failedRecords,
+      message: `成功导入${savedCount}条记录${failedRecords.length > 0 ? `，${failedRecords.length}条失败` : ''}`
+    };
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] 导入Excel文件失败: ${error.message}`);
+    console.error(error.stack);
+    throw error;
+  }
+}

@@ -1,10 +1,15 @@
 <template>
   <div class="app-container">
     <header class="app-header">
-      <h1>治疗记录数据录入</h1>
+      <h1>{{ currentView === 'treatment' ? '治疗记录数据录入' : '喝水记录管理' }}</h1>
+      <nav class="nav-tabs">
+        <button type="button" class="nav-tab" :class="{ active: currentView === 'treatment' }" @click="currentView = 'treatment'">治疗记录</button>
+        <button type="button" class="nav-tab" :class="{ active: currentView === 'water' }" @click="currentView = 'water'">喝水记录</button>
+      </nav>
     </header>
 
     <main class="app-main">
+      <template v-if="currentView === 'treatment'">
       <!-- 日期选择卡片 -->
       <div class="card date-card">
         <div class="form-group">
@@ -13,12 +18,19 @@
         </div>
       </div>
 
-      <!-- 导出按钮卡片 -->
+      <!-- 导出/导入按钮卡片 -->
       <div class="card export-card">
-        <button type="button" class="export-button" @click="export28DaysData" :disabled="isExporting">
-          <span class="button-icon">📊</span>
-          <span class="button-text">{{ isExporting ? '导出中...' : '导出最近28天数据' }}</span>
-        </button>
+        <div class="button-group">
+          <button type="button" class="export-button" @click="export28DaysData" :disabled="isExporting || isImporting">
+            <span class="button-icon">📊</span>
+            <span class="button-text">{{ isExporting ? '导出中...' : '导出最近28天数据' }}</span>
+          </button>
+          <button type="button" class="import-button" @click="triggerFileInput" :disabled="isExporting || isImporting">
+            <span class="button-icon">📥</span>
+            <span class="button-text">{{ isImporting ? '导入中...' : '导入治疗记录' }}</span>
+          </button>
+          <input ref="fileInput" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileImport">
+        </div>
       </div>
 
       <!-- 数据输入表单卡片 -->
@@ -118,6 +130,8 @@
           </div>
         </div>
       </transition>
+      </template>
+      <WaterIntakeView v-else />
     </main>
     
     <!-- 通知消息 -->
@@ -157,11 +171,15 @@
 <script>
 import { fillExcelData, getWaterIntakeByDate } from './utils/fillExcelData.js';
 import { saveTreatmentRecord, getTreatmentRecordsByDateRange } from './utils/database.js';
+import { importTreatmentRecordsFromExcel, exportMultipleRecordsToExcel } from './utils/exportExcel.js';
+import WaterIntakeView from './components/WaterIntakeView.vue';
 
 export default {
   name: 'App',
+  components: { WaterIntakeView },
   data() {
     return {
+      currentView: 'treatment',
       selectedDate: this.getTodayDate(),
       formData: {
         bloodPressure: '',
@@ -176,6 +194,7 @@ export default {
       },
       isSubmitting: false,
       isExporting: false,
+      isImporting: false,
       showResult: false,
       successMessage: '',
       saveFileName: '',
@@ -319,17 +338,14 @@ export default {
         // 从数据库获取数据
         const recordsResult = await getTreatmentRecordsByDateRange(formattedStartDate, endDate);
         const records = recordsResult.success ? recordsResult.data : [];
-        
+
         console.log(`[${new Date().toISOString()}] 从数据库获取到 ${records.length} 条记录`);
-        
-        // 导入导出Excel的工具函数
-        const { exportMultipleRecordsToExcel } = await import('./utils/exportExcel.js');
-        
+
         // 导出到Excel，传递日期范围以便生成正确的文件名
         console.log(`[${new Date().toISOString()}] 开始生成Excel文件`);
-        const result = await exportMultipleRecordsToExcel(records, { 
-          startDate: formattedStartDate, 
-          endDate: endDate 
+        const result = await exportMultipleRecordsToExcel(records, {
+          startDate: formattedStartDate,
+          endDate: endDate
         });
         
         // 显示成功消息
@@ -346,6 +362,52 @@ export default {
       } finally {
         this.isExporting = false;
         console.log(`[${new Date().toISOString()}] 导出操作完成`);
+      }
+    },
+
+    triggerFileInput() {
+      // 触发隐藏的文件输入元素的点击
+      if (this.$refs.fileInput) {
+        this.$refs.fileInput.value = '';
+        this.$refs.fileInput.click();
+      }
+    },
+
+    async handleFileImport(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        console.log(`[${new Date().toISOString()}] 用户未选择文件`);
+        return;
+      }
+
+      try {
+        console.log(`[${new Date().toISOString()}] 用户选择文件: ${file.name}, 大小: ${file.size} 字节`);
+        this.isImporting = true;
+        this.error = '';
+        this.successMessage = '';
+
+        const result = await importTreatmentRecordsFromExcel(file, saveTreatmentRecord);
+
+        if (result.count === 0) {
+          this.error = result.message || 'Excel文件中未找到有效记录';
+        } else {
+          this.successMessage = result.message;
+          // 刷新当日饮水量显示（导入的数据可能影响当前选中日期）
+          await this.loadDailyWaterIntake();
+        }
+
+        console.log(`[${new Date().toISOString()}] 导入完成: ${result.message}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] 导入数据失败，错误: ${error.message}`);
+        console.error(error.stack);
+        this.error = `导入失败: ${error.message}`;
+      } finally {
+        this.isImporting = false;
+        // 重置文件输入，允许再次选择同一文件
+        if (this.$refs.fileInput) {
+          this.$refs.fileInput.value = '';
+        }
+        console.log(`[${new Date().toISOString()}] 导入操作完成`);
       }
     }
   }
@@ -368,13 +430,37 @@ export default {
 .app-header h1 {
   text-align: center;
   color: #2c3e50;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   font-size: 28px;
   font-weight: 700;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.nav-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.nav-tab {
+  border: 1.5px solid #d0d7de;
+  background: #ffffff;
+  color: #34495e;
+  padding: 9px 22px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.nav-tab:hover { border-color: #2980b9; color: #2980b9; }
+.nav-tab.active {
+  background: linear-gradient(135deg, #2980b9, #1f6fa0);
+  color: #fff;
+  border-color: transparent;
 }
 
 /* 主内容区域 */
@@ -406,6 +492,47 @@ export default {
 /* 导出按钮卡片 */
 .export-card {
   padding: 16px;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+}
+
+.import-button {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  color: white;
+  padding: 16px 20px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.import-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.5);
+}
+
+.import-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(52, 152, 219, 0.3);
+}
+
+.import-button:disabled {
+  background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.7;
 }
 
 /* 表单卡片 */
@@ -505,7 +632,7 @@ input[type="date"] {
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
-  width: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -831,9 +958,14 @@ input[type="date"] {
     font-size: 18px;
   }
 
-  .export-button {
+  .export-button,
+  .import-button {
     padding: 18px 20px;
     font-size: 17px;
+  }
+
+  .button-group {
+    flex-direction: column;
   }
 
   .form-group input {
