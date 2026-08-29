@@ -50,25 +50,24 @@ export async function fillExcelData(data) {
     const headers = [
       ['星期'],                    // 第0行：星期几
       ['日期'],                    // 第1行：治疗日期
-      ['血压'],                    // 第2行：血压数据
-      ['心率'],                    // 第3行：心率
-      ['体重(不带水)'],            // 第4行：体重
-      ['加热袋'],                  // 第5行：加热袋容量
-      ['补充袋'],                  // 第6行：补充袋容量
-      ['治疗方式'],                // 第7行：IPD/CCPD等
-      ['总治疗量'],                // 第8行：总治疗量
-      ['治疗时间'],                // 第9行：治疗时长
-      ['单次注入量'],              // 第10行：每次注入量
-      ['末袋注入量'],              // 第11行：最后注入量
-      ['循环次数'],                // 第12行：治疗循环次数
-      ['0周期超流量'],             // 第13行：0周期超滤量
-      ['机器总超滤量'],            // 第14行：机器总超滤量
-      ['日间手工注入量'],          // 第15行：日间手工注入量
-      ['日间注入浓度'],            // 第16行：日间注入浓度
-      ['日间超滤量'],              // 第17行：日间超滤量
-      ['机器+手工总超滤量'],       // 第18行：总超滤量（计算值）
-      ['饮水量'],                   // 第19行：饮水量
-      ['腹透液颜色']                // 第20行：腹透液颜色
+      ['血压/心率'],                // 第2行：血压/心率（合并，格式如120/80/75）
+      ['体重(不带水)'],            // 第3行：体重
+      ['加热袋'],                  // 第4行：加热袋容量
+      ['补充袋'],                  // 第5行：补充袋容量
+      ['治疗方式'],                // 第6行：IPD/CCPD等
+      ['总治疗量'],                // 第7行：总治疗量
+      ['治疗时间'],                // 第8行：治疗时长
+      ['单次注入量'],              // 第9行：每次注入量
+      ['末袋注入量'],              // 第10行：最后注入量
+      ['循环次数'],                // 第11行：治疗循环次数
+      ['0周期超流量'],             // 第12行：0周期超滤量
+      ['机器总超滤量'],            // 第13行：机器总超滤量
+      ['日间手工注入量'],          // 第14行：日间手工注入量
+      ['日间注入浓度'],            // 第15行：日间注入浓度
+      ['日间超滤量'],              // 第16行：日间超滤量
+      ['机器+手工总超滤量'],       // 第17行：总超滤量（计算值）
+      ['饮水量'],                   // 第18行：饮水量
+      ['腹透液颜色']                // 第19行：腹透液颜色
     ];
 
     // 步骤3：计算当前日期对应的星期
@@ -161,8 +160,7 @@ export async function fillExcelData(data) {
     const rowLabels = {
       weekday: '星期',
       date: '日期',
-      bloodPressure: '血压',
-      heartRate: '心率',
+      bloodPressureHeartRate: '血压/心率',
       weight: '体重(不带水)',
       heatingBag: '加热袋',
       supplementBag: '补充袋',
@@ -193,6 +191,20 @@ export async function fillExcelData(data) {
       }
       indices[key] = found;
     });
+    // 兼容旧文件：如果没有"血压/心率"行，使用"血压"行作为 fallback
+    if (indices.bloodPressureHeartRate === -1) {
+      for (let i = 0; i < rows.length; i++) {
+        if (usedRows.has(i)) continue;
+        const cellLabel = String(rows[i] && rows[i][0] !== undefined ? rows[i][0] : '').trim();
+        if (cellLabel === '血压') {
+          indices.bloodPressureHeartRate = i;
+          usedRows.add(i);
+          // 更新表头标签为新格式
+          rows[i][0] = '血压/心率';
+          break;
+        }
+      }
+    }
     // 未找到的行（新字段在旧文件中不存在）分配到末尾新行
     let nextNewRowIndex = rows.length;
     Object.keys(rowLabels).forEach(key => {
@@ -202,7 +214,7 @@ export async function fillExcelData(data) {
     });
     const dateRowIndex = indices.date;
     const weekdayRowIndex = indices.weekday;
-    console.log(`[${new Date().toISOString()}] 检测到行索引: 饮水量=${indices.waterIntake}, 腹透液颜色=${indices.dialysateColor}, 机器+手工=${indices.machinePlusManualFlow}`);
+    console.log(`[${new Date().toISOString()}] 检测到行索引: 血压/心率=${indices.bloodPressureHeartRate}, 饮水量=${indices.waterIntake}, 腹透液颜色=${indices.dialysateColor}, 机器+手工=${indices.machinePlusManualFlow}`);
 
     // 步骤10：查找目标日期是否已存在
     let targetColumn = -1;
@@ -270,8 +282,8 @@ export async function fillExcelData(data) {
     //* @param {string} data.dayInjectionConcentration - 日间注入浓度
     //* @param {string} data.dayUltrafiltration - 日间超滤量
     // 填写数据
-    rows[indices.bloodPressure][targetColumn] = data.bloodPressure;
-    rows[indices.heartRate][targetColumn] = data.heartRate;
+    // 血压/心率合并为一行，格式：收缩压/舒张压/心率（如120/80/75）
+    rows[indices.bloodPressureHeartRate][targetColumn] = `${data.bloodPressure}/${data.heartRate}`;
     rows[indices.weight][targetColumn] = data.weight;
     rows[indices.heatingBag][targetColumn] = data.heatingBag || '2.5';
     rows[indices.supplementBag][targetColumn] = data.supplementBag || '2.5';
@@ -291,10 +303,8 @@ export async function fillExcelData(data) {
     const machinePlusManualFlow = (data.zeroCircleFlow || 0) + (data.machineTotalFlow || 0) + (data.dayUltrafiltration || 0);
     rows[indices.machinePlusManualFlow][targetColumn] = machinePlusManualFlow;
 
-    // 饮水量累加：从Excel读出当日已有饮水量，加上本次输入
-    const existingWaterIntake = Number(rows[indices.waterIntake][targetColumn]) || 0;
-    const accumulatedWaterIntake = existingWaterIntake + userInputWaterIntake;
-    rows[indices.waterIntake][targetColumn] = accumulatedWaterIntake;
+    // 饮水量：直接使用用户输入值，不累加
+    rows[indices.waterIntake][targetColumn] = userInputWaterIntake;
     rows[indices.dialysateColor][targetColumn] = data.dialysateColor || '清亮';
 
     // 将数据保存到数据库
@@ -318,7 +328,7 @@ export async function fillExcelData(data) {
       dayInjectionConcentration: data.dayInjectionConcentration || '艾烤糊精',
       dayUltrafiltration: data.dayUltrafiltration,
       machinePlusManualFlow: machinePlusManualFlow,
-      waterIntake: accumulatedWaterIntake,
+      waterIntake: userInputWaterIntake,
       dialysateColor: data.dialysateColor || '清亮'
     };
 

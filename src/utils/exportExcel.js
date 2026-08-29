@@ -56,25 +56,24 @@ export async function exportMultipleRecordsToExcel(records, dateRange = null) {
     const headers = [
       ['星期'],                    // 第0行：星期几
       ['日期'],                    // 第1行：治疗日期
-      ['血压'],                    // 第2行：血压数据
-      ['心率'],                    // 第3行：心率
-      ['体重(不带水)'],            // 第4行：体重
-      ['加热袋'],                  // 第5行：加热袋容量
-      ['补充袋'],                  // 第6行：补充袋容量
-      ['治疗方式'],                // 第7行：IPD/CCPD等
-      ['总治疗量'],                // 第8行：总治疗量
-      ['治疗时间'],                // 第9行：治疗时长
-      ['单次注入量'],              // 第10行：每次注入量
-      ['末袋注入量'],              // 第11行：最后注入量
-      ['循环次数'],                // 第12行：治疗循环次数
-      ['0周期超流量'],             // 第13行：0周期超滤量
-      ['机器总超滤量'],            // 第14行：机器总超滤量
-      ['日间手工注入量'],          // 第15行：日间手工注入量
-      ['日间注入浓度'],            // 第16行：日间注入浓度
-      ['日间超滤量'],              // 第17行：日间超滤量
-      ['机器+手工总超滤量'],       // 第18行：总超滤量（计算值）
-      ['饮水量'],                   // 第19行：饮水量
-      ['腹透液颜色']                // 第20行：腹透液颜色
+      ['血压/心率'],                // 第2行：血压/心率（合并，格式如120/80/75）
+      ['体重(不带水)'],            // 第3行：体重
+      ['加热袋'],                  // 第4行：加热袋容量
+      ['补充袋'],                  // 第5行：补充袋容量
+      ['治疗方式'],                // 第6行：IPD/CCPD等
+      ['总治疗量'],                // 第7行：总治疗量
+      ['治疗时间'],                // 第8行：治疗时长
+      ['单次注入量'],              // 第9行：每次注入量
+      ['末袋注入量'],              // 第10行：最后注入量
+      ['循环次数'],                // 第11行：治疗循环次数
+      ['0周期超流量'],             // 第12行：0周期超滤量
+      ['机器总超滤量'],            // 第13行：机器总超滤量
+      ['日间手工注入量'],          // 第14行：日间手工注入量
+      ['日间注入浓度'],            // 第15行：日间注入浓度
+      ['日间超滤量'],              // 第16行：日间超滤量
+      ['机器+手工总超滤量'],       // 第17行：总超滤量（计算值）
+      ['饮水量'],                   // 第18行：饮水量
+      ['腹透液颜色']                // 第19行：腹透液颜色
     ];
 
     // 步骤3：创建新的工作簿
@@ -98,25 +97,24 @@ export async function exportMultipleRecordsToExcel(records, dateRange = null) {
 
     // 步骤7：定义各数据字段对应的行索引
     const indices = {
-      bloodPressure: 2,              // 血压
-      heartRate: 3,                  // 心率
-      weight: 4,                     // 体重
-      heatingBag: 5,                 // 加热袋
-      supplementBag: 6,              // 补充袋
-      treatmentMethod: 7,           // 治疗方式
-      totalTreatmentVolume: 8,      // 总治疗量
-      treatmentTime: 9,              // 治疗时间
-      singleInjectionVolume: 10,    // 单次注入量
-      lastBagInjectionVolume: 11,    // 末袋注入量
-      cycleCount: 12,                // 循环次数
-      zeroCircleFlow: 13,            // 0周期超流量
-      machineTotalFlow: 14,          // 机器总超滤量
-      dayManualInjection: 15,        // 日间手工注入量
-      dayInjectionConcentration: 16, // 日间注入浓度
-      dayUltrafiltration: 17,        // 日间超滤量
-      machinePlusManualFlow: 18,     // 机器+手工总超滤量
-      waterIntake: 19,                // 饮水量
-      dialysateColor: 20              // 腹透液颜色
+      bloodPressureHeartRate: 2,     // 血压/心率（合并）
+      weight: 3,                     // 体重
+      heatingBag: 4,                 // 加热袋
+      supplementBag: 5,              // 补充袋
+      treatmentMethod: 6,           // 治疗方式
+      totalTreatmentVolume: 7,      // 总治疗量
+      treatmentTime: 8,              // 治疗时间
+      singleInjectionVolume: 9,    // 单次注入量
+      lastBagInjectionVolume: 10,    // 末袋注入量
+      cycleCount: 11,                // 循环次数
+      zeroCircleFlow: 12,            // 0周期超流量
+      machineTotalFlow: 13,          // 机器总超滤量
+      dayManualInjection: 14,        // 日间手工注入量
+      dayInjectionConcentration: 15, // 日间注入浓度
+      dayUltrafiltration: 16,        // 日间超滤量
+      machinePlusManualFlow: 17,     // 机器+手工总超滤量
+      waterIntake: 18,                // 饮水量
+      dialysateColor: 19              // 腹透液颜色
     };
 
     // 步骤8：确保所有行都存在且是有效的数组
@@ -168,8 +166,8 @@ export async function exportMultipleRecordsToExcel(records, dateRange = null) {
       rows[weekdayRowIndex][targetColumn] = weekday;
 
       // 填写数据
-      rows[indices.bloodPressure][targetColumn] = record.bloodPressure;
-      rows[indices.heartRate][targetColumn] = record.heartRate;
+      // 血压/心率合并为一行，格式：收缩压/舒张压/心率（如120/80/75）
+      rows[indices.bloodPressureHeartRate][targetColumn] = `${record.bloodPressure}/${record.heartRate}`;
       rows[indices.weight][targetColumn] = record.weight;
       rows[indices.heatingBag][targetColumn] = record.heatingBag || '2.5';
       rows[indices.supplementBag][targetColumn] = record.supplementBag || '2.5';
@@ -310,8 +308,7 @@ export async function importTreatmentRecordsFromExcel(fileOrData, saveRecord) {
     const rowLabels = {
       weekday: '星期',
       date: '日期',
-      bloodPressure: '血压',
-      heartRate: '心率',
+      bloodPressureHeartRate: '血压/心率',
       weight: '体重(不带水)',
       heatingBag: '加热袋',
       supplementBag: '补充袋',
@@ -343,12 +340,35 @@ export async function importTreatmentRecordsFromExcel(fileOrData, saveRecord) {
       }
       indices[key] = found;
     });
+    // 兼容旧文件：如果没有"血压/心率"行，使用"血压"行作为 fallback
+    let legacyHeartRateIdx = -1;
+    if (indices.bloodPressureHeartRate === -1) {
+      for (let i = 0; i < rows.length; i++) {
+        if (usedRows.has(i)) continue;
+        const cellLabel = String(rows[i] && rows[i][0] !== undefined ? rows[i][0] : '').trim();
+        if (cellLabel === '血压') {
+          indices.bloodPressureHeartRate = i;
+          usedRows.add(i);
+          break;
+        }
+      }
+      // 旧文件中查找"心率"行
+      for (let i = 0; i < rows.length; i++) {
+        if (usedRows.has(i)) continue;
+        const cellLabel = String(rows[i] && rows[i][0] !== undefined ? rows[i][0] : '').trim();
+        if (cellLabel === '心率') {
+          legacyHeartRateIdx = i;
+          usedRows.add(i);
+          break;
+        }
+      }
+    }
 
     // 必须有日期行才能导入
     if (indices.date === -1) {
       throw new Error('Excel文件中未找到"日期"行，无法识别数据格式');
     }
-    console.log(`[${new Date().toISOString()}] 行索引检测完成: 日期=${indices.date}, 饮水量=${indices.waterIntake}`);
+    console.log(`[${new Date().toISOString()}] 行索引检测完成: 日期=${indices.date}, 血压/心率=${indices.bloodPressureHeartRate}, 饮水量=${indices.waterIntake}`);
 
     // 步骤5：从每列提取记录（从列1开始，跳过表头列0）
     const dateRow = rows[indices.date] || [];
@@ -368,11 +388,32 @@ export async function importTreatmentRecordsFromExcel(fileOrData, saveRecord) {
         return val !== undefined && val !== null ? val : '';
       };
 
+      // 解析血压/心率：新格式"120/80/75"或旧格式"120/80"+独立心率行
+      const combinedBP = String(getValue('bloodPressureHeartRate') || '').trim();
+      let bloodPressure = '';
+      let heartRate = '';
+      if (combinedBP) {
+        const parts = combinedBP.split('/');
+        if (parts.length === 3) {
+          // 新格式：收缩压/舒张压/心率
+          bloodPressure = `${parts[0]}/${parts[1]}`;
+          heartRate = parts[2];
+        } else if (parts.length === 2) {
+          // 旧格式：收缩压/舒张压，心率在独立行
+          bloodPressure = combinedBP;
+          if (legacyHeartRateIdx !== -1 && rows[legacyHeartRateIdx]) {
+            heartRate = rows[legacyHeartRateIdx][col] !== undefined ? rows[legacyHeartRateIdx][col] : '';
+          }
+        } else {
+          bloodPressure = combinedBP;
+        }
+      }
+
       const record = {
         date: dateValue,
         weekday: String(getValue('weekday') || ''),
-        bloodPressure: String(getValue('bloodPressure') || ''),
-        heartRate: getValue('heartRate'),
+        bloodPressure: bloodPressure,
+        heartRate: heartRate,
         weight: getValue('weight'),
         heatingBag: String(getValue('heatingBag') || ''),
         supplementBag: String(getValue('supplementBag') || ''),
