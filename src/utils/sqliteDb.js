@@ -618,7 +618,7 @@ export async function savePdExchangesToSQLite(date, exchanges) {
 }
 
 /**
- * 删除某一天的全部记录（治疗、血压、换液、用药、喝水）
+ * 删除某一天的治疗类记录（治疗、血压、换液、用药），保留喝水记录
  */
 export async function deleteDayRecordsFromSQLite(date) {
     const conn = await initSQLite();
@@ -629,7 +629,6 @@ export async function deleteDayRecordsFromSQLite(date) {
         await conn.run(`DELETE FROM bp_measurements WHERE date = ?`, [date]);
         await conn.run(`DELETE FROM pd_exchanges WHERE date = ?`, [date]);
         await conn.run(`DELETE FROM medications WHERE date = ?`, [date]);
-        await conn.run(`DELETE FROM water_intake_records WHERE date = ?`, [date]);
         return { success: true };
     } catch (error) {
         console.error(`[${new Date().toISOString()}] SQLite 删除当日记录失败: ${error.message}`);

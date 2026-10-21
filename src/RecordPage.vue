@@ -908,7 +908,7 @@ export default {
       }
     },
     async deleteDay() {
-      if (!window.confirm(`确定删除 ${this.dateLabel} 的全部记录吗？`)) return;
+      if (!window.confirm(`确定删除 ${this.dateLabel} 的治疗、血压、换液和用药记录吗？喝水记录会保留。`)) return;
       const result = await deleteDayRecordsFromSQLite(this.selectedDate);
       if (result.success) {
         this.showToast('已删除');
