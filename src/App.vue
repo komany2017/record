@@ -29,7 +29,11 @@
             <span class="button-icon">📥</span>
             <span class="button-text">{{ isImporting ? '导入中...' : '导入治疗记录' }}</span>
           </button>
-          <input ref="fileInput" type="file" accept=".xlsx,.xls" style="display:none" @change="handleFileImport">
+          <button type="button" class="import-all-button" @click="importAllHistory" :disabled="isExporting || isImporting">
+            <span class="button-icon">📚</span>
+            <span class="button-text">{{ isImporting ? '导入中...' : '导入全部历史数据' }}</span>
+          </button>
+          <input ref="fileInput" type="file" accept=".xlsx,.xls" multiple style="display:none" @change="handleFileImport">
         </div>
       </div>
 
@@ -40,48 +44,48 @@
         <div class="form-row">
           <div class="form-group">
             <label for="bloodPressure">血压/心率</label>
-            <input type="text" id="bloodPressure" v-model="formData.bloodPressure" placeholder="例如: 120/80/75" required>
+            <input type="text" id="bloodPressure" v-model="formData.bloodPressure" placeholder="选填，例如: 120/80/75">
           </div>
 
           <div class="form-group">
             <label for="weight">体重 (kg)</label>
-            <input type="number" id="weight" v-model.number="formData.weight" step="0.01" required>
+            <input type="number" id="weight" v-model.number="formData.weight" step="0.01" placeholder="选填">
           </div>
         </div>
         
         <div class="form-row">
           <div class="form-group">
             <label for="zeroCircleFlow">0周期超滤量</label>
-            <input type="number" id="zeroCircleFlow" v-model.number="formData.zeroCircleFlow" required>
+            <input type="number" id="zeroCircleFlow" v-model.number="formData.zeroCircleFlow" placeholder="选填">
           </div>
           
           <div class="form-group">
             <label for="machineTotalFlow">机器总超滤量</label>
-            <input type="number" id="machineTotalFlow" v-model.number="formData.machineTotalFlow" required>
+            <input type="number" id="machineTotalFlow" v-model.number="formData.machineTotalFlow" placeholder="选填">
           </div>
         </div>
         
         <div class="form-row">
           <div class="form-group">
             <label for="dayManualInjection">日间手工注入量</label>
-            <input type="number" id="dayManualInjection" v-model.number="formData.dayManualInjection" placeholder="默认2000">
+            <input type="number" id="dayManualInjection" v-model.number="formData.dayManualInjection" placeholder="选填">
           </div>
           
           <div class="form-group">
             <label for="dayInjectionConcentration">日间注入浓度</label>
-            <input type="text" id="dayInjectionConcentration" v-model="formData.dayInjectionConcentration" placeholder="默认艾烤糊精">
+            <input type="text" id="dayInjectionConcentration" v-model="formData.dayInjectionConcentration" placeholder="选填">
           </div>
         </div>
         
         <div class="form-row">
           <div class="form-group">
             <label for="dayUltrafiltration">日间超滤量</label>
-            <input type="number" id="dayUltrafiltration" v-model.number="formData.dayUltrafiltration" placeholder="默认0">
+            <input type="number" id="dayUltrafiltration" v-model.number="formData.dayUltrafiltration" placeholder="选填">
           </div>
           
           <div class="form-group">
             <label for="waterIntake">饮水量</label>
-            <input type="number" id="waterIntake" v-model.number="formData.waterIntake" required>
+            <input type="number" id="waterIntake" v-model.number="formData.waterIntake" placeholder="选填">
             <div class="hint-text" v-if="dailyWaterIntake > 0">当日累计: {{ dailyWaterIntake }} ml</div>
           </div>
         </div>
@@ -89,7 +93,8 @@
         <div class="form-row">
           <div class="form-group">
             <label for="dialysateColor">腹透液颜色</label>
-            <select id="dialysateColor" v-model="formData.dialysateColor" required>
+            <select id="dialysateColor" v-model="formData.dialysateColor">
+              <option value="">（不填）</option>
               <option value="清亮">清亮</option>
               <option value="浑浊">浑浊</option>
               <option value="血性">血性</option>
@@ -104,32 +109,6 @@
           </button>
         </div>
       </form>
-
-      <!-- 结果显示区域 -->
-      <transition name="fade">
-        <div v-if="showResult" class="card result-card">
-          <h2 class="result-title">提交结果</h2>
-          <div class="result-content">
-            <div class="result-item">
-              <span class="result-label">日期：</span>
-              <span class="result-value">{{ selectedDate }}</span>
-            </div>
-            <div v-for="(value, key) in formData" :key="key" class="result-item">
-              <span class="result-label">{{ 
-                key === 'bloodPressure' ? '血压/心率：' : 
-                key === 'weight' ? '体重：' : 
-                key === 'zeroCircleFlow' ? '0周期超滤量：' : 
-                key === 'machineTotalFlow' ? '机器总超滤量：' : 
-                key === 'dayManualInjection' ? '日间手工注入量：' : 
-                key === 'dayInjectionConcentration' ? '日间注入浓度：' : 
-                key === 'dayUltrafiltration' ? '日间超滤量：' : 
-                key === 'waterIntake' ? '饮水量：' : '腹透液颜色：' 
-              }}</span>
-              <span class="result-value">{{ key === 'weight' ? Number(value).toFixed(2) : value }}</span>
-            </div>
-          </div>
-        </div>
-      </transition>
       </template>
       <WaterIntakeView v-else />
     </main>
@@ -171,7 +150,10 @@
 <script>
 import { fillExcelData, getWaterIntakeByDate } from './utils/fillExcelData.js';
 import { saveTreatmentRecord, getTreatmentRecordsByDateRange } from './utils/database.js';
+import { initSQLite, saveTreatmentRecordToSQLite } from './utils/sqliteDb.js';
 import { importTreatmentRecordsFromExcel, exportMultipleRecordsToExcel } from './utils/exportExcel.js';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import WaterIntakeView from './components/WaterIntakeView.vue';
 
 export default {
@@ -183,19 +165,18 @@ export default {
       selectedDate: this.getTodayDate(),
       formData: {
         bloodPressure: '',
-        weight: 58.00,
+        weight: '',
         zeroCircleFlow: '',
         machineTotalFlow: '',
         dayManualInjection: '',
         dayInjectionConcentration: '',
         dayUltrafiltration: '',
-        waterIntake: 800,
-        dialysateColor: '清亮'
+        waterIntake: '',
+        dialysateColor: ''
       },
       isSubmitting: false,
       isExporting: false,
       isImporting: false,
-      showResult: false,
       successMessage: '',
       saveFileName: '',
       savePath: '',
@@ -225,6 +206,8 @@ export default {
     }
   },
   mounted() {
+    // 初始化 SQLite 本地数据库（Android 平台，含历史数据迁移）
+    initSQLite();
     // 初始化时加载当日饮水量
     this.loadDailyWaterIntake();
   },
@@ -256,31 +239,42 @@ export default {
         this.error = '';
         this.successMessage = '';
         
-        // 验证血压/心率格式：120/80/75
-        const bloodPressureRegex = /^\d{2,3}\/\d{2,3}\/\d{2,3}$/;
-        if (!bloodPressureRegex.test(this.formData.bloodPressure)) {
-          console.error(`[${new Date().toISOString()}] 血压/心率格式验证失败: ${this.formData.bloodPressure}`);
-          this.error = '格式不正确，请输入如 120/80/75 的格式（血压/心率）';
-          return;
+        // 血压/心率为选填：有值时验证格式 120/80/75，空值则跳过
+        let bloodPressure = '';
+        let heartRate = '';
+        const bpInput = (this.formData.bloodPressure || '').trim();
+        if (bpInput) {
+          const bloodPressureRegex = /^\d{2,3}\/\d{2,3}\/\d{2,3}$/;
+          if (!bloodPressureRegex.test(bpInput)) {
+            console.error(`[${new Date().toISOString()}] 血压/心率格式验证失败: ${bpInput}`);
+            this.error = '格式不正确，请输入如 120/80/75 的格式（血压/心率），或留空';
+            return;
+          }
+          // 解析血压/心率：格式为 收缩压/舒张压/心率
+          const [systolic, diastolic, hr] = bpInput.split('/');
+          bloodPressure = `${systolic}/${diastolic}`;
+          heartRate = hr;
         }
-
-        // 解析血压/心率：格式为 收缩压/舒张压/心率
-        const [systolic, diastolic, heartRate] = this.formData.bloodPressure.split('/');
-        const bloodPressure = `${systolic}/${diastolic}`;
         
         // 准备数据
         const dateObj = new Date(this.selectedDate);
         const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
         const weekday = weekdays[dateObj.getDay()];
         
-        // 计算machinePlusManualFlow字段
-        const machinePlusManualFlow = (this.formData.machineTotalFlow || 0) + (this.formData.dayManualInjection || 0);
-        
+        // 计算machinePlusManualFlow字段（三项全为空时保持为空）
+        const flowValues = [this.formData.zeroCircleFlow, this.formData.machineTotalFlow, this.formData.dayUltrafiltration];
+        const hasFlow = flowValues.some(v => v !== '' && v !== null && v !== undefined);
+        const machinePlusManualFlow = hasFlow
+          ? flowValues.reduce((sum, v) => sum + (Number(v) || 0), 0)
+          : '';
+
         const data = {
           ...this.formData,
           bloodPressure: bloodPressure,
-          heartRate: Number(heartRate),
-          weight: Number(this.formData.weight).toFixed(2),
+          heartRate: heartRate,
+          weight: (this.formData.weight === '' || this.formData.weight === null || this.formData.weight === undefined)
+            ? ''
+            : Number(this.formData.weight).toFixed(2),
           date: this.selectedDate,
           weekday: weekday,
           machinePlusManualFlow: machinePlusManualFlow
@@ -294,16 +288,18 @@ export default {
           this.error = '数据保存到数据库失败，请重试';
           return;
         }
+
+        // 同步写入本地 SQLite 数据库（Android 原生平台）
+        await saveTreatmentRecordToSQLite(data);
         
         // 直接调用前端fillExcelData函数生成Excel文件
         const result = await fillExcelData(data);
         
         // 显示成功消息
-        this.showResult = true;
         this.successMessage = result.message;
         this.saveFileName = result.fileName || '';
         this.savePath = result.savePath || '';
-        // 刷新当日饮水量显示（累加后总量已变化）
+        // 刷新当日饮水量显示
         await this.loadDailyWaterIntake();
         
         console.log(`[${new Date().toISOString()}] 治疗记录提交成功，日期: ${this.selectedDate}`);
@@ -373,30 +369,102 @@ export default {
       }
     },
 
+    /**
+     * 历史文件排序：区间导出文件（文件名含"_"）在前，月度文件（6位数字）在后
+     * 使相同日期以月度文件为最终值（月度文件是应用持续写入的最新数据）
+     */
+    sortHistoryFiles(names) {
+      return names.slice().sort((a, b) => {
+        const am = /^治疗记录\d{6}\.xlsx$/.test(a) ? 1 : 0;
+        const bm = /^治疗记录\d{6}\.xlsx$/.test(b) ? 1 : 0;
+        return am - bm || a.localeCompare(b);
+      });
+    },
+
+    /**
+     * 导入记录的保存函数：同时写入 IndexedDB 和本地 SQLite
+     */
+    async saveImportedRecord(record) {
+      const result = await saveTreatmentRecord(record);
+      if (result.success) {
+        await saveTreatmentRecordToSQLite(record);
+      }
+      return result;
+    },
+
+    /**
+     * base64 字符串转 ArrayBuffer（Capacitor Filesystem 读取的内容为 base64）
+     */
+    base64ToArrayBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    },
+
+    /**
+     * 解析并导入多个Excel数据源
+     * @param {Array<{name: string, load: Function}>} sources - 每项含文件名与返回ArrayBuffer的加载函数
+     * @returns {Promise<Object>} - 含count（唯一日期数）、fileCount、failedFiles
+     * 先按日期合并（后解析的覆盖先前的），再逐条落库，避免同一日期重复写入
+     */
+    async importFromSources(sources) {
+      const merged = new Map();
+      const failedFiles = [];
+
+      for (const source of sources) {
+        try {
+          const buffer = await source.load();
+          // 传入空保存函数：此处只解析，落库统一在合并后执行
+          const result = await importTreatmentRecordsFromExcel(buffer, async () => {});
+          const records = result.records || [];
+          records.forEach(r => merged.set(r.date, r));
+          console.log(`[${new Date().toISOString()}] 已解析 ${source.name}，提取 ${records.length} 条`);
+        } catch (error) {
+          console.error(`[${new Date().toISOString()}] 解析 ${source.name} 失败: ${error.message}`);
+          failedFiles.push(source.name);
+        }
+      }
+
+      for (const record of merged.values()) {
+        await this.saveImportedRecord(record);
+      }
+
+      console.log(`[${new Date().toISOString()}] 导入落库完成，共 ${merged.size} 条唯一日期记录`);
+      return { count: merged.size, fileCount: sources.length, failedFiles };
+    },
+
     async handleFileImport(event) {
-      const file = event.target.files && event.target.files[0];
-      if (!file) {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) {
         console.log(`[${new Date().toISOString()}] 用户未选择文件`);
         return;
       }
 
       try {
-        console.log(`[${new Date().toISOString()}] 用户选择文件: ${file.name}, 大小: ${file.size} 字节`);
+        console.log(`[${new Date().toISOString()}] 用户选择 ${files.length} 个文件`);
         this.isImporting = true;
         this.error = '';
         this.successMessage = '';
 
-        const result = await importTreatmentRecordsFromExcel(file, saveTreatmentRecord);
+        const ordered = this.sortHistoryFiles(files.map(f => f.name))
+          .map(name => files.find(f => f.name === name));
+
+        const result = await this.importFromSources(ordered.map(file => ({
+          name: file.name,
+          load: () => file.arrayBuffer()
+        })));
 
         if (result.count === 0) {
-          this.error = result.message || 'Excel文件中未找到有效记录';
+          this.error = '未从所选文件中解析出有效记录';
         } else {
-          this.successMessage = result.message;
+          this.successMessage = `已从 ${result.fileCount - result.failedFiles.length} 个文件导入 ${result.count} 条记录`
+            + (result.failedFiles.length > 0 ? `，${result.failedFiles.length} 个文件失败` : '');
           // 刷新当日饮水量显示（导入的数据可能影响当前选中日期）
           await this.loadDailyWaterIntake();
         }
-
-        console.log(`[${new Date().toISOString()}] 导入完成: ${result.message}`);
       } catch (error) {
         console.error(`[${new Date().toISOString()}] 导入数据失败，错误: ${error.message}`);
         console.error(error.stack);
@@ -408,6 +476,61 @@ export default {
           this.$refs.fileInput.value = '';
         }
         console.log(`[${new Date().toISOString()}] 导入操作完成`);
+      }
+    },
+
+    /**
+     * 一键导入 Documents 目录下的全部历史治疗记录文件
+     * 包含月度文件（治疗记录202601.xlsx）与区间导出文件（治疗记录_2026-02-06_至_2026-03-05.xlsx）
+     */
+    async importAllHistory() {
+      if (!Capacitor.isNativePlatform()) {
+        this.error = '该功能仅在手机端可用';
+        return;
+      }
+
+      try {
+        this.isImporting = true;
+        this.error = '';
+        this.successMessage = '';
+
+        const listing = await Filesystem.readdir({ path: '', directory: Directory.Documents });
+        const names = this.sortHistoryFiles(
+          listing.files
+            .filter(f => f.type === 'file' && /^治疗记录.*\.xlsx$/.test(f.name))
+            .map(f => f.name)
+        );
+
+        if (names.length === 0) {
+          this.error = 'Documents 目录下未找到治疗记录文件';
+          return;
+        }
+
+        console.log(`[${new Date().toISOString()}] 待导入文件 ${names.length} 个`);
+
+        // 先按日期合并，再逐条落库（IndexedDB + SQLite）
+        const result = await this.importFromSources(names.map(name => ({
+          name,
+          load: async () => {
+            const fc = await Filesystem.readFile({ path: name, directory: Directory.Documents });
+            return this.base64ToArrayBuffer(fc.data);
+          }
+        })));
+
+        if (result.count === 0) {
+          this.error = '未能从文件中解析出任何有效记录';
+        } else {
+          this.successMessage = `已从 ${result.fileCount - result.failedFiles.length} 个文件导入 ${result.count} 条治疗记录`
+            + (result.failedFiles.length > 0 ? `，${result.failedFiles.length} 个文件失败` : '');
+          await this.loadDailyWaterIntake();
+        }
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] 批量导入失败，错误: ${error.message}`);
+        console.error(error.stack);
+        this.error = `批量导入失败: ${error.message}`;
+      } finally {
+        this.isImporting = false;
+        console.log(`[${new Date().toISOString()}] 批量导入操作完成`);
       }
     }
   }
@@ -499,7 +622,8 @@ export default {
   gap: 12px;
 }
 
-.import-button {
+.import-button,
+.import-all-button {
   background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
   color: white;
   padding: 16px 20px;
@@ -527,12 +651,29 @@ export default {
   box-shadow: 0 2px 10px rgba(52, 152, 219, 0.3);
 }
 
-.import-button:disabled {
+.import-button:disabled,
+.import-all-button:disabled {
   background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
   opacity: 0.7;
+}
+
+/* 一键导入全部历史数据按钮（青绿色区分） */
+.import-all-button {
+  background: linear-gradient(135deg, #16a085 0%, #1abc9c 100%);
+  box-shadow: 0 4px 15px rgba(22, 160, 133, 0.4);
+}
+
+.import-all-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(22, 160, 133, 0.5);
+}
+
+.import-all-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(22, 160, 133, 0.3);
 }
 
 /* 表单卡片 */
@@ -715,54 +856,6 @@ input[type="date"] {
   transform: none;
   box-shadow: none;
   opacity: 0.7;
-}
-
-/* 结果显示区域 */
-.result-card {
-  border-left: 4px solid #667eea;
-  padding: 24px;
-  margin-top: 20px;
-}
-
-.result-title {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: #2c3e50;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.result-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.result-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background-color: #f8f9ff;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.result-item:hover {
-  background-color: #eef2ff;
-}
-
-.result-label {
-  font-weight: 600;
-  color: #34495e;
-  font-size: 15px;
-}
-
-.result-value {
-  font-weight: 500;
-  color: #2c3e50;
-  font-size: 15px;
-  font-family: 'Courier New', monospace;
 }
 
 /* 通知消息容器 */
@@ -959,7 +1052,8 @@ input[type="date"] {
   }
 
   .export-button,
-  .import-button {
+  .import-button,
+  .import-all-button {
     padding: 18px 20px;
     font-size: 17px;
   }
@@ -1021,31 +1115,6 @@ input[type="date"] {
 
   .form-group input::placeholder {
     color: #4a5568;
-  }
-
-  .result-card {
-    background-color: #16213e;
-    border-left-color: #667eea;
-  }
-
-  .result-title {
-    color: #e0e0e0;
-  }
-
-  .result-item {
-    background-color: #0f3460;
-  }
-
-  .result-item:hover {
-    background-color: #1a1a2e;
-  }
-
-  .result-label {
-    color: #b0b0b0;
-  }
-
-  .result-value {
-    color: #e0e0e0;
   }
 
   .form-title {

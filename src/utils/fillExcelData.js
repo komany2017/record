@@ -38,8 +38,10 @@ import { saveTreatmentRecord, getTreatmentRecordByDate } from './database';
 export async function fillExcelData(data) {
   try {
     console.log(`[${new Date().toISOString()}] 开始填充Excel数据，日期: ${data.date}`);
-    // 保存用户输入的饮水量（累加用），避免被数据库旧值覆盖
-    const userInputWaterIntake = Number(data.waterIntake);
+    // 保存用户输入的饮水量（空值保持空，不再默认填 0）
+    const userInputWaterIntake = (data.waterIntake === '' || data.waterIntake === null || data.waterIntake === undefined)
+      ? ''
+      : Number(data.waterIntake);
     // 步骤1：生成Excel文件名
     // 从日期中提取年月部分，例如：2023-12-15 -> 202312
     const yearMonth = data.date.substring(0, 7).replace('-', ''); 
@@ -282,9 +284,10 @@ export async function fillExcelData(data) {
     //* @param {string} data.dayInjectionConcentration - 日间注入浓度
     //* @param {string} data.dayUltrafiltration - 日间超滤量
     // 填写数据
-    // 血压/心率合并为一行，格式：收缩压/舒张压/心率（如120/80/75）
-    rows[indices.bloodPressureHeartRate][targetColumn] = `${data.bloodPressure}/${data.heartRate}`;
-    rows[indices.weight][targetColumn] = data.weight;
+    // 血压/心率合并为一行，格式：收缩压/舒张压/心率（如120/80/75）；两者皆空时留空
+    const bpParts = [data.bloodPressure, data.heartRate].filter(v => v !== '' && v !== null && v !== undefined);
+    rows[indices.bloodPressureHeartRate][targetColumn] = bpParts.join('/');
+    rows[indices.weight][targetColumn] = data.weight ?? '';
     rows[indices.heatingBag][targetColumn] = data.heatingBag || '2.5';
     rows[indices.supplementBag][targetColumn] = data.supplementBag || '2.5';
     rows[indices.treatmentMethod][targetColumn] = data.treatmentMethod || 'IPD';
@@ -293,19 +296,23 @@ export async function fillExcelData(data) {
     rows[indices.singleInjectionVolume][targetColumn] = data.singleInjectionVolume || '2000';
     rows[indices.lastBagInjectionVolume][targetColumn] = data.lastBagInjectionVolume || '0';
     rows[indices.cycleCount][targetColumn] = data.cycleCount || '4';
-    rows[indices.zeroCircleFlow][targetColumn] = data.zeroCircleFlow;
-    rows[indices.machineTotalFlow][targetColumn] = data.machineTotalFlow;
-    rows[indices.dayManualInjection][targetColumn] = data.dayManualInjection || '2000';
-    rows[indices.dayInjectionConcentration][targetColumn] = data.dayInjectionConcentration || '艾烤糊精';
-    rows[indices.dayUltrafiltration][targetColumn] = data.dayUltrafiltration;
+    rows[indices.zeroCircleFlow][targetColumn] = data.zeroCircleFlow ?? '';
+    rows[indices.machineTotalFlow][targetColumn] = data.machineTotalFlow ?? '';
+    rows[indices.dayManualInjection][targetColumn] = data.dayManualInjection ?? '';
+    rows[indices.dayInjectionConcentration][targetColumn] = data.dayInjectionConcentration ?? '';
+    rows[indices.dayUltrafiltration][targetColumn] = data.dayUltrafiltration ?? '';
 
-    // 计算机器+手工总超滤量
-    const machinePlusManualFlow = (data.zeroCircleFlow || 0) + (data.machineTotalFlow || 0) + (data.dayUltrafiltration || 0);
+    // 计算机器+手工总超滤量（三项全空时留空）
+    const flowValues = [data.zeroCircleFlow, data.machineTotalFlow, data.dayUltrafiltration];
+    const hasFlow = flowValues.some(v => v !== '' && v !== null && v !== undefined);
+    const machinePlusManualFlow = hasFlow
+      ? flowValues.reduce((sum, v) => sum + (Number(v) || 0), 0)
+      : '';
     rows[indices.machinePlusManualFlow][targetColumn] = machinePlusManualFlow;
 
     // 饮水量：直接使用用户输入值，不累加
     rows[indices.waterIntake][targetColumn] = userInputWaterIntake;
-    rows[indices.dialysateColor][targetColumn] = data.dialysateColor || '清亮';
+    rows[indices.dialysateColor][targetColumn] = data.dialysateColor ?? '';
 
     // 将数据保存到数据库
     const databaseData = {
@@ -322,14 +329,14 @@ export async function fillExcelData(data) {
       singleInjectionVolume: data.singleInjectionVolume || '2000',
       lastBagInjectionVolume: data.lastBagInjectionVolume || '0',
       cycleCount: data.cycleCount || '4',
-      zeroCircleFlow: data.zeroCircleFlow,
-      machineTotalFlow: data.machineTotalFlow,
-      dayManualInjection: data.dayManualInjection || '2000',
-      dayInjectionConcentration: data.dayInjectionConcentration || '艾烤糊精',
-      dayUltrafiltration: data.dayUltrafiltration,
+      zeroCircleFlow: data.zeroCircleFlow ?? '',
+      machineTotalFlow: data.machineTotalFlow ?? '',
+      dayManualInjection: data.dayManualInjection ?? '',
+      dayInjectionConcentration: data.dayInjectionConcentration ?? '',
+      dayUltrafiltration: data.dayUltrafiltration ?? '',
       machinePlusManualFlow: machinePlusManualFlow,
       waterIntake: userInputWaterIntake,
-      dialysateColor: data.dialysateColor || '清亮'
+      dialysateColor: data.dialysateColor ?? ''
     };
 
     console.log(`[${new Date().toISOString()}] 开始将数据保存到数据库，日期: ${data.date}`);

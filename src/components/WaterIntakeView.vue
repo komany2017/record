@@ -100,11 +100,11 @@
 </template>
 
 <script>
-import * as XLSX from 'xlsx';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Capacitor } from '@capacitor/core';
-
-const HEADERS = ['日期', '时间', '饮水量(ml)', '饮水类型', '记录时间戳'];
+import {
+  saveWaterIntakeToSQLite,
+  deleteWaterIntakeFromSQLite,
+  getWaterIntakeFromSQLite
+} from '../utils/sqliteDb.js';
 
 export default {
   name: 'WaterIntakeView',
@@ -166,44 +166,22 @@ export default {
       const p = n => String(n).padStart(2, '0');
       return `${p(d.getHours())}:${p(d.getMinutes())}`;
     },
-    fileNameFor(date) {
-      return `${String(date).replace(/-/g, '')}_喝水记录.xlsx`;
-    },
     async loadRecords() {
       this.records = [];
       this.message = null;
       try {
-        const rows = await this.readExcelRows(this.selectedDate);
-        if (rows.length > 1) {
-          this.records = rows.slice(1)
-            .filter(r => r && r.length >= 4 && r[0] !== '')
-            .map(r => ({
-              date: r[0],
-              time: r[1],
-              amount: Number(r[2]),
-              type: r[3],
-              timestamp: r[4] || ''
-            }));
-        }
+        const rows = await getWaterIntakeFromSQLite(this.selectedDate);
+        this.records = rows.map(r => ({
+          date: r.date,
+          time: r.time,
+          amount: Number(r.amount),
+          type: r.type,
+          timestamp: r.timestamp
+        }));
       } catch (e) {
         console.error(`[${new Date().toISOString()}] 加载喝水记录失败: ${e.message}`);
         this.records = [];
       }
-    },
-    async readExcelRows(date) {
-      const isMobile = Capacitor.isNativePlatform();
-      if (!isMobile) return [];
-      const fileName = this.fileNameFor(date);
-      let fileContent;
-      try {
-        fileContent = await Filesystem.readFile({ path: fileName, directory: Directory.Documents });
-      } catch (e) {
-        return [];
-      }
-      const wb = XLSX.read(atob(fileContent.data), { type: 'binary' });
-      const ws = wb.Sheets['Sheet1'];
-      if (!ws) return [];
-      return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     },
     async submitForm() {
       this.message = null;
@@ -231,37 +209,35 @@ export default {
 
       this.isSaving = true;
       try {
-        let rows = await this.readExcelRows(this.selectedDate);
-        if (!rows.length || !rows[0] || !rows[0][0]) rows = [HEADERS];
-        // 确保表头行正确
-        if (!rows[0] || rows[0].length < HEADERS.length || rows[0][0] !== HEADERS[0]) {
-          rows[0] = HEADERS;
-        }
-
         if (this.editingTimestamp) {
-          // 更新模式：查找匹配 timestamp 的行并替换
-          let updated = false;
-          for (let i = 1; i < rows.length; i++) {
-            if (String(rows[i][4] || '') === String(this.editingTimestamp)) {
-              rows[i] = [this.selectedDate, this.form.time, amount, this.form.type, this.editingTimestamp];
-              updated = true;
-              break;
-            }
-          }
-          if (!updated) {
-            this.message = { type: 'error', text: '未找到要修改的记录，可能已被删除' };
-            this.isSaving = false;
+          // 更新模式：按 timestamp 覆盖
+          const result = await saveWaterIntakeToSQLite({
+            date: this.selectedDate,
+            time: this.form.time,
+            amount: amount,
+            type: this.form.type,
+            timestamp: this.editingTimestamp
+          });
+          if (!result.success) {
+            this.message = { type: 'error', text: `更新失败：${result.message}` };
             return;
           }
-          await this.writeRows(this.selectedDate, rows);
           this.message = { type: 'success', text: `已更新为 ${amount}ml ${this.form.type}` };
           this.cancelEdit();
         } else {
           // 新增模式
           const timestamp = new Date().toISOString();
-          const newRow = [this.selectedDate, this.form.time, amount, this.form.type, timestamp];
-          rows.push(newRow);
-          await this.writeRows(this.selectedDate, rows);
+          const result = await saveWaterIntakeToSQLite({
+            date: this.selectedDate,
+            time: this.form.time,
+            amount: amount,
+            type: this.form.type,
+            timestamp: timestamp
+          });
+          if (!result.success) {
+            this.message = { type: 'error', text: `保存失败：${result.message}` };
+            return;
+          }
           this.message = { type: 'success', text: `已记录 ${amount}ml ${this.form.type}` };
           this.form.amount = '';
           this.form.time = this.nowTime();
@@ -300,16 +276,11 @@ export default {
       this.isSaving = true;
       this.message = null;
       try {
-        let rows = await this.readExcelRows(this.selectedDate);
-        if (!rows.length) rows = [HEADERS];
-        // 过滤掉匹配 timestamp 的数据行（保留表头行）
-        const filtered = [rows[0]];
-        for (let i = 1; i < rows.length; i++) {
-          if (String(rows[i][4] || '') !== String(record.timestamp)) {
-            filtered.push(rows[i]);
-          }
+        const result = await deleteWaterIntakeFromSQLite(record.timestamp);
+        if (!result.success) {
+          this.message = { type: 'error', text: `删除失败：${result.message}` };
+          return;
         }
-        await this.writeRows(this.selectedDate, filtered);
 
         // 如果正在编辑被删除的记录，取消编辑
         if (this.editingTimestamp === record.timestamp) {
@@ -323,35 +294,6 @@ export default {
       } finally {
         this.isSaving = false;
       }
-    },
-    async writeRows(date, rows) {
-      const fileName = this.fileNameFor(date);
-      const isMobile = Capacitor.isNativePlatform();
-
-      // 重建工作簿，确保 SheetNames 与 Sheets 同步，避免 write 失败
-      const workbook = XLSX.utils.book_new();
-      const newWs = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(workbook, newWs, 'Sheet1');
-
-      if (isMobile) {
-        const buf = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        await Filesystem.writeFile({
-          path: fileName,
-          data: this.arrayBufferToBase64(buf),
-          directory: Directory.Documents,
-          recursive: true
-        });
-      } else {
-        XLSX.writeFile(workbook, fileName);
-      }
-    },
-    arrayBufferToBase64(buffer) {
-      let binary = '';
-      const bytes = new Uint8Array(buffer);
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binary);
     },
     formatStamp(iso) {
       if (!iso) return '';
