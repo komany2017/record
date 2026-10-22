@@ -75,8 +75,28 @@
       </div>
 
       <div class="quick-chips">
-        <button v-for="n in [100, 200, 300, 500]" :key="n" type="button" @click="addWater(n)">+{{ n }}</button>
+        <button v-for="n in waterQuickOptions" :key="n" type="button" @click="addWater(n)">+{{ n }}</button>
         <button type="button" class="clear" @click="intake.water = ''">清零</button>
+      </div>
+
+      <div class="water-custom">
+        <button type="button" class="custom-toggle" @click="showWaterCustom = !showWaterCustom">
+          {{ showWaterCustom ? '收起自定义容量' : '＋ 自定义容量' }}
+        </button>
+        <div v-if="showWaterCustom" class="custom-panel">
+          <div class="custom-input">
+            <input type="number" inputmode="numeric" v-model="newWaterCapacity" placeholder="如 250">
+            <span>ml</span>
+            <button type="button" @click="addWaterCapacity">添加</button>
+          </div>
+          <div v-if="waterQuicks.length" class="custom-chips">
+            <span v-for="n in waterQuicks" :key="n" class="custom-chip">
+              {{ n }}ml
+              <i @click="removeWaterCapacity(n)">×</i>
+            </span>
+          </div>
+          <p v-else class="custom-hint">添加后上方会出现对应快捷按钮，点一下即按该容量累加</p>
+        </div>
       </div>
 
       <div class="intake-row">
@@ -452,6 +472,32 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const WATER_QUICKS_KEY = 'waterQuicks';
+
+/** 读取自定义常用饮水容量（升序、去重、限制 1-5000ml） */
+function loadWaterQuicks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(WATER_QUICKS_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map(n => Math.round(Number(n)))
+      .filter(n => !isNaN(n) && n > 0 && n <= 5000)
+      .filter((n, i, arr) => arr.indexOf(n) === i)
+      .sort((a, b) => a - b);
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] 读取自定义饮水容量失败: ${e.message}`);
+    return [];
+  }
+}
+
+function saveWaterQuicks(list) {
+  try {
+    localStorage.setItem(WATER_QUICKS_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] 保存自定义饮水容量失败: ${e.message}`);
+  }
+}
+
 export default {
   name: 'RecordPage',
   data() {
@@ -467,6 +513,9 @@ export default {
       bpList: [],
       intake: { water: '', other: '' },
       output: { urine: '', other: '' },
+      waterQuicks: loadWaterQuicks(),
+      showWaterCustom: false,
+      newWaterCapacity: '',
       pdList: [],
       weight: '',
       lastWeight: '',
@@ -552,6 +601,11 @@ export default {
     availableMeds() {
       const names = this.meds.map(m => m.name);
       return COMMON_MEDS.filter(m => !names.includes(m));
+    },
+    /** 快捷容量：默认四档 + 用户自定义 */
+    waterQuickOptions() {
+      const defaults = [100, 200, 300, 500];
+      return [...defaults, ...this.waterQuicks.filter(n => !defaults.includes(n))];
     }
   },
   watch: {
@@ -684,6 +738,26 @@ export default {
     },
     addWater(amount) {
       this.intake.water = String(round(num(this.intake.water) + amount));
+    },
+    addWaterCapacity() {
+      const value = Math.round(Number(this.newWaterCapacity));
+      if (!value || isNaN(value) || value <= 0 || value > 5000) {
+        this.showToast('请输入 1-5000 之间的容量');
+        return;
+      }
+      if (this.waterQuickOptions.includes(value)) {
+        this.showToast(`已有 ${value}ml 快捷容量`);
+        return;
+      }
+      this.waterQuicks = [...this.waterQuicks, value].sort((a, b) => a - b);
+      saveWaterQuicks(this.waterQuicks);
+      this.newWaterCapacity = '';
+      this.showToast(`已添加 ${value}ml 快捷容量`);
+    },
+    removeWaterCapacity(value) {
+      this.waterQuicks = this.waterQuicks.filter(n => n !== value);
+      saveWaterQuicks(this.waterQuicks);
+      this.showToast(`已移除 ${value}ml 快捷容量`);
     },
     addPd(kind) {
       if (kind === 'apd') {
@@ -1211,12 +1285,13 @@ export default {
 
 .quick-chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding-bottom: 12px;
 }
 
 .quick-chips button {
-  flex: 1;
+  flex: 1 1 62px;
   border: none;
   background: #f1f3f8;
   color: #5f6673;
@@ -1229,6 +1304,86 @@ export default {
   color: #9aa0a6;
   background: #fafbfd;
   box-shadow: inset 0 0 0 1px #eceef2;
+}
+
+.water-custom {
+  padding-bottom: 12px;
+}
+
+.custom-toggle {
+  border: none;
+  background: none;
+  color: #2f7bf6;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.custom-panel {
+  margin-top: 10px;
+  padding: 12px;
+  background: #f7f9fc;
+  border-radius: 12px;
+}
+
+.custom-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-input input {
+  flex: 1;
+  border: 1px solid #e3e7ee;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.custom-input span {
+  font-size: 12px;
+  color: #8b93a1;
+}
+
+.custom-input button {
+  border: none;
+  background: #2f7bf6;
+  color: #fff;
+  font-size: 12px;
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+
+.custom-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.custom-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e8f1ff;
+  color: #2f7bf6;
+  font-size: 12px;
+  border-radius: 14px;
+  padding: 5px 10px;
+}
+
+.custom-chip i {
+  font-style: normal;
+  font-size: 14px;
+  line-height: 1;
+  color: #8aa9da;
+}
+
+.custom-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #9aa0a6;
 }
 
 .totals {
