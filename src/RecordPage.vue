@@ -85,7 +85,7 @@
         </button>
         <div v-if="showWaterCustom" class="custom-panel">
           <div class="custom-input">
-            <input type="number" inputmode="numeric" v-model="newWaterCapacity" placeholder="如 250">
+            <input type="number" inputmode="numeric" v-model="newWaterCapacity" placeholder="如 250" @focus="focusWaterCapacity">
             <span>ml</span>
             <button type="button" @click="addWaterCapacity">添加</button>
           </div>
@@ -758,6 +758,13 @@ export default {
       this.waterQuicks = this.waterQuicks.filter(n => n !== value);
       saveWaterQuicks(this.waterQuicks);
       this.showToast(`已移除 ${value}ml 快捷容量`);
+    },
+    /** 键盘弹出后把输入框滚到可视区中间，避免被底部按钮遮挡 */
+    focusWaterCapacity(event) {
+      const el = event.target;
+      setTimeout(() => {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 260);
     },
     addPd(kind) {
       if (kind === 'apd') {
