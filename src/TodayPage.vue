@@ -92,7 +92,8 @@ import {
   getBpMeasurementsFromSQLite,
   getPdExchangesFromSQLite,
   getWaterIntakeFromSQLite,
-  getDailyUfSeriesFromSQLite
+  getDailyUfSeriesFromSQLite,
+  getRecordDate
 } from './utils/sqliteDb.js';
 import { Bar } from 'vue-chartjs';
 import {
@@ -125,7 +126,7 @@ export default {
   components: { Bar },
   data() {
     return {
-      today: toLocalISO(new Date()),
+      today: getRecordDate(),
       record: null,
       bpMeasurements: [],
       exchanges: [],
@@ -264,7 +265,7 @@ export default {
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        days.push(toLocalISO(d));
+        days.push(getRecordDate(d));
       }
       return days;
     },
@@ -370,7 +371,8 @@ export default {
           getTreatmentRecordFromSQLite(this.today),
           getBpMeasurementsFromSQLite(this.today),
           getPdExchangesFromSQLite(this.today),
-          getWaterIntakeFromSQLite(this.today),
+          // 今日饮水量按「早 7 点」日界归属
+          getWaterIntakeFromSQLite(getRecordDate()),
           getDailyUfSeriesFromSQLite(start, this.today)
         ]);
         this.record = record || null;

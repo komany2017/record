@@ -327,6 +327,22 @@ export async function getAllTreatmentRecordsFromSQLite() {
 }
 
 /**
+ * 所有记录按「早 7 点」划分日界：00:00-06:59 归属前一天
+ * 返回 YYYY-MM-DD
+ */
+export function getRecordDate(date = new Date()) {
+    const d = new Date(date);
+    if (d.getHours() < 7) {
+        d.setDate(d.getDate() - 1);
+    }
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** 兼容别名 */
+export const getWaterDate = getRecordDate;
+
+/**
  * 按日期汇总喝水记录（饮水量趋势用）
  */
 export async function getWaterTotalsByDateFromSQLite() {

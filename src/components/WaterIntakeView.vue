@@ -103,7 +103,8 @@
 import {
   saveWaterIntakeToSQLite,
   deleteWaterIntakeFromSQLite,
-  getWaterIntakeFromSQLite
+  getWaterIntakeFromSQLite,
+  getWaterDate
 } from '../utils/sqliteDb.js';
 
 export default {
@@ -157,9 +158,8 @@ export default {
   },
   methods: {
     getTodayDate() {
-      const d = new Date();
-      const p = n => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      // 饮水记录以早 7 点为日界，凌晨 0-7 点归属前一天
+      return getWaterDate();
     },
     nowTime() {
       const d = new Date();

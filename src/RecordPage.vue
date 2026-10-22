@@ -406,7 +406,8 @@ import {
   getWaterIntakeFromSQLite,
   setDailyWaterTotal,
   getLatestWeightBeforeFromSQLite,
-  deleteDayRecordsFromSQLite
+  deleteDayRecordsFromSQLite,
+  getRecordDate
 } from './utils/sqliteDb.js';
 import {
   PD_BRANDS,
@@ -454,7 +455,7 @@ function uid() {
 export default {
   name: 'RecordPage',
   data() {
-    const today = toLocalISO(new Date());
+    const today = getRecordDate();
     return {
       selectedDate: today,
       brands: PD_BRANDS,
@@ -481,7 +482,7 @@ export default {
   },
   computed: {
     isToday() {
-      return this.selectedDate === toLocalISO(new Date());
+      return this.selectedDate === getRecordDate();
     },
     dateLabel() {
       const d = new Date(`${this.selectedDate}T00:00:00`);
@@ -660,7 +661,7 @@ export default {
       const d = new Date(`${this.selectedDate}T00:00:00`);
       d.setDate(d.getDate() + offset);
       const next = toLocalISO(d);
-      if (next > toLocalISO(new Date())) return;
+      if (next > getRecordDate()) return;
       this.selectedDate = next;
     },
     addBp() {

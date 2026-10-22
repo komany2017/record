@@ -171,7 +171,8 @@ import {
   getTreatmentRecordFromSQLite,
   getWaterIntakeFromSQLite,
   getAllTreatmentRecordsFromSQLite,
-  getWaterTotalsByDateFromSQLite
+  getWaterTotalsByDateFromSQLite,
+  getRecordDate
 } from './utils/sqliteDb.js';
 import { Line, Bar } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement, BarController, Filler } from 'chart.js';
@@ -222,7 +223,7 @@ export default {
       loadingAll: true,
 
       // 选定日期记录
-      selectedDate: toLocalISO(new Date()),
+      selectedDate: getRecordDate(),
       dailyRecord: null,
       dailyWaterTotal: 0,
       dailyLoading: true,
@@ -236,12 +237,14 @@ export default {
       return METRICS.find(m => m.key === this.metric) || METRICS[0];
     },
     rangeStartDate() {
-      const start = new Date();
-      start.setDate(start.getDate() - (this.rangeDays - 1));
-      return toLocalISO(start);
+      const today = getRecordDate();
+      const d = new Date(`${today}T00:00:00`);
+      d.setDate(d.getDate() - (this.rangeDays - 1));
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     },
     todayISO() {
-      return toLocalISO(new Date());
+      return getRecordDate();
     },
     rangeRecords() {
       return this.allRecords
